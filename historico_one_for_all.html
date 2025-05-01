@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>One For All - Histórico</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary-color: #1be0ac; /* Verde Turquesa */
+      --primary-hover: #17c497;
+      --secondary-color: #343a40; /* Cinza escuro */
+      --secondary-hover: #23272b;
+      --danger-color: #dc3545;
+      --danger-hover: #c82333;
+      --light-bg: #f8f9fa;
+      --dark-bg: #212529;
+      --border-color: #ced4da;
+      --text-color: #212529;
+      --text-muted: #6c757d;
+      --white: #ffffff;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+      --border-radius: 0.375rem; /* 6px */
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #e9ecef; /* Fundo ligeiramente cinza */
+      color: var(--text-color);
+      line-height: 1.6;
+      padding: 1rem;
+    }
+
+    h1, h2, h3, h4 {
+      margin-bottom: 1rem;
+      line-height: 1.3;
+      font-weight: 600;
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      text-align: center;
+      margin: 1rem 0 1.5rem;
+      color: var(--primary-color);
+      font-weight: 700;
+    }
+
+    @media (max-width: 768px) {
+      h1 {
+        font-size: 1.5rem;
+      }
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 1rem auto;
+      padding: 1.5rem;
+    }
+
+    .button-container {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 480px) {
+      .button-container {
+        flex-direction: column;
+      }
+    }
+
+    button {
+      padding: 0.75rem 1.25rem;
+      cursor: pointer;
+      font-weight: 600;
+      border-radius: var(--border-radius);
+      font-size: 1rem;
+      transition: background-color 0.2s, transform 0.1s;
+      border: none;
+      color: var(--white);
+    }
+    
+    button:active {
+        transform: scale(0.98);
+    }
+
+    button.primary {
+      background-color: var(--primary-color);
+    }
+
+    button.primary:hover {
+      background-color: var(--primary-hover);
+    }
+
+    button.danger {
+      background-color: var(--danger-color);
+    }
+
+    button.danger:hover {
+      background-color: var(--danger-hover);
+    }
+
+    .historico-item {
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius);
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+      background-color: white;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .historico-item h3 {
+      margin-top: 0;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 0.5rem;
+      margin-bottom: 1rem;
+      font-size: 1.1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .historico-item p {
+      margin: 0.5rem 0;
+      font-size: 0.95rem;
+    }
+
+    .historico-item strong {
+      font-weight: 600;
+    }
+
+    .highlight {
+      font-weight: bold;
+      color: var(--primary-color);
+    }
+
+    .timestamp {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-align: right;
+    }
+
+    #historicoVazio {
+      text-align: center;
+      color: var(--text-muted);
+      margin-top: 2rem;
+      padding: 2rem;
+      background-color: white;
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow-sm);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.75rem 0;
+      font-size: 0.9rem;
+      box-shadow: var(--shadow-sm);
+      border-radius: var(--border-radius);
+      overflow: hidden; /* Para o border-radius funcionar com a tabela */
+    }
+
+    th, td {
+      border: 1px solid var(--border-color);
+      padding: 0.75rem;
+      text-align: left;
+    }
+
+    th {
+      background-color: var(--light-bg);
+      font-weight: 600;
+      color: var(--secondary-color);
+    }
+    
+    td {
+        background-color: var(--white);
+    }
+
+    tr:nth-child(even) td {
+      background-color: var(--light-bg);
+    }
+
+    .chart-container {
+      margin: 2rem auto;
+      max-width: 100%;
+      height: 300px;
+      background-color: white;
+      padding: 1.5rem;
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow-md);
+    }
+
+    .chart-title {
+      text-align: center;
+      margin-bottom: 1rem;
+      font-size: 1.2rem;
+      color: var(--secondary-color);
+      font-weight: 600;
+    }
+
+    /* Estilos para dispositivos móveis */
+    @media (max-width: 768px) {
+      body {
+        padding: 0.5rem;
+      }
+      
+      .container {
+        padding: 0.75rem;
+        margin: 0.5rem auto;
+      }
+      
+      .historico-item {
+        padding: 1rem;
+      }
+      
+      table {
+        font-size: 0.85rem;
+      }
+      
+      th, td {
+        padding: 0.6rem;
+      }
+      
+      .chart-container {
+        height: 250px;
+        padding: 1rem;
+      }
+    }
+
+    /* Estilos para telas muito pequenas */
+    @media (max-width: 360px) {
+      h1 {
+        font-size: 1.3rem;
+      }
+      
+      button {
+        font-size: 0.9rem;
+        padding: 0.65rem 1rem;
+      }
+      
+      .historico-item h3 {
+        font-size: 1rem;
+      }
+      
+      .historico-item p {
+        font-size: 0.9rem;
+      }
+    }
+
+    /* Estilo para tabelas responsivas */
+    @media (max-width: 480px) {
+      .table-responsive {
+        overflow-x: auto;
+        display: block;
+        width: 100%;
+        -webkit-overflow-scrolling: touch;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>One For All - Histórico</h1>
+
+    <div class="button-container">
+      <button onclick="voltarCalculadora()" class="primary">Voltar para Calculadora</button>
+      <button onclick="limparHistorico()" class="danger">Limpar Histórico</button>
+    </div>
+
+    <div class="chart-container">
+      <div class="chart-title">Distribuição dos Resultados (Soma Dígitos + Minuto)</div>
+      <canvas id="resultadosChart"></canvas>
+    </div>
+
+    <div id="listaHistorico">
+      <!-- Histórico será carregado aqui -->
+    </div>
+
+    <div id="historicoVazio" style="display: none;">
+      <p>Nenhum cálculo foi salvo ainda.</p>
+    </div>
+  </div>
+
+  <script>
+    function carregarHistorico() {
+      const listaHistoricoDiv = document.getElementById('listaHistorico');
+      const historicoVazioDiv = document.getElementById('historicoVazio');
+      listaHistoricoDiv.innerHTML = ''; // Limpa a lista atual
+      const historico = JSON.parse(localStorage.getItem('historicoCalculosOneForAll')) || [];
+
+      if (historico.length === 0) {
+        historicoVazioDiv.style.display = 'block';
+        listaHistoricoDiv.style.display = 'none';
+        // Não há dados para o gráfico
+        document.querySelector('.chart-container').style.display = 'none';
+      } else {
+        historicoVazioDiv.style.display = 'none';
+        listaHistoricoDiv.style.display = 'block';
+        document.querySelector('.chart-container').style.display = 'block';
+
+        // Preparar dados para o gráfico
+        const resultados = historico
+          .filter(item => item.calculoAdicional && item.calculoAdicional.resultadoSomaMinuto !== undefined)
+          .map(item => item.calculoAdicional.resultadoSomaMinuto);
+        
+        criarGraficoResultados(resultados);
+
+        historico.forEach((item, index) => {
+          const itemDiv = document.createElement('div');
+          itemDiv.classList.add('historico-item');
+          itemDiv.id = `historico-${index}`;
+
+          let tabelaHtml = `
+            <div class="table-responsive">
+              <table>
+                <thead><tr><th>Tipo</th><th>Horário Calculado</th></tr></thead>
+                <tbody>`;
+          if (item.resultados && item.resultados.length > 0) {
+              item.resultados.forEach(res => {
+                  tabelaHtml += `<tr><td>${res.tipo}</td><td>${res.valor}</td></tr>`;
+              });
+          } else {
+              tabelaHtml += `<tr><td colspan="2">Nenhum horário Antes/Depois calculado.</td></tr>`;
+          }
+          tabelaHtml += `</tbody></table></div>`;
+
+          let calculoAdicionalHtml = '';
+          if (item.calculoAdicional) {
+              const calc = item.calculoAdicional;
+              calculoAdicionalHtml = `
+                <h4>Cálculo Adicional:</h4>
+                <p>Soma dos dígitos: ${calc.somaDigitos}</p>
+                <p>Resultado (Soma Dígitos + Minuto): ${calc.somaDigitos} + ${calc.minuto} = <span class="highlight">${calc.resultadoSomaMinuto}</span></p>
+              `;
+          }
+
+          itemDiv.innerHTML = `
+            <h3>
+              <span>Cálculo #${historico.length - index}</span>
+              <span class="timestamp">${item.timestamp || 'Data não registrada'}</span>
+            </h3>
+            <p><strong>Horário Base:</strong> ${item.branco}</p>
+            <p><strong>Números:</strong> Antes(${item.antes1 || 0}, ${item.antes2 || 0}), Depois(${item.depois1 || 0}, ${item.depois2 || 0})</p>
+            <h4>Horários Calculados (Antes/Depois):</h4>
+            ${tabelaHtml}
+            ${calculoAdicionalHtml}
+          `;
+          listaHistoricoDiv.appendChild(itemDiv);
+        });
+      }
+    }
+
+    function criarGraficoResultados(resultados) {
+      // Contar frequência de cada resultado
+      const contagem = {};
+      resultados.forEach(resultado => {
+        contagem[resultado] = (contagem[resultado] || 0) + 1;
+      });
+
+      // Ordenar as chaves numericamente
+      const chaves = Object.keys(contagem).sort((a, b) => parseInt(a) - parseInt(b));
+      
+      // Preparar dados para o Chart.js
+      const dados = {
+        labels: chaves,
+        datasets: [{
+          label: 'Frequência',
+          data: chaves.map(chave => contagem[chave]),
+          backgroundColor: 'rgba(27, 224, 172, 0.7)',
+          borderColor: 'rgba(27, 224, 172, 1)',
+          borderWidth: 1
+        }]
+      };
+
+      // Configurar e criar o gráfico
+      const ctx = document.getElementById('resultadosChart').getContext('2d');
+      
+      // Destruir gráfico anterior se existir
+      if (window.resultadosGrafico) {
+        window.resultadosGrafico.destroy();
+      }
+      
+      window.resultadosGrafico = new Chart(ctx, {
+        type: 'bar',
+        data: dados,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                precision: 0
+              }
+            }
+          },
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              callbacks: {
+                title: function(tooltipItems) {
+                  return `Resultado: ${tooltipItems[0].label}`;
+                },
+                label: function(context) {
+                  return `Frequência: ${context.raw}`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function limparHistorico() {
+      if (confirm('Tem certeza que deseja limpar todo o histórico de cálculos? Esta ação não pode ser desfeita.')) {
+        localStorage.removeItem('historicoCalculosOneForAll');
+        carregarHistorico(); // Atualiza a exibição
+      }
+    }
+
+    function voltarCalculadora() {
+      window.location.href = 'calculadora_one_for_all.html';
+    }
+
+    // Carrega o histórico quando a página é carregada
+    document.addEventListener('DOMContentLoaded', carregarHistorico);
+  </script>
+</body>
+</html>
