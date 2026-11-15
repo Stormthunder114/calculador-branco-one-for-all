@@ -87,7 +87,7 @@ test("Uma coleta real simulada atualiza somente os 100 oficiais",async()=>{
   let calls=0;
   ctx.fetch=async (url,options)=>{
     calls++;
-    assert.match(url,/page=1/);
+    assert.equal(url,"https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1?");
     assert.equal(options.mode,"cors");
     assert.equal(options.credentials,"omit");
     return {status:200,ok:true,json:async()=>payload};
