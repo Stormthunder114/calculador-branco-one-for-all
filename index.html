@@ -7,7 +7,7 @@
   <meta name="description" content="One For All: painel de monitoramento estatístico dos últimos 100 resultados oficiais do Double da Blitz.">
   <title>One For All | Double ao vivo</title>
   <link rel="stylesheet" href="./style.css">
-  <script src="./app.js?v=20261115-sem-datas" defer></script>
+  <script src="./app.js?v=20261115-diagnostico-url" defer></script>
 </head>
 <body>
   <div class="shell">
@@ -39,6 +39,12 @@
       <div id="notice" class="notice neutral" role="status" aria-live="polite">
         Consultando a API oficial sem filtros de data, com até 100 resultados.
       </div>
+      <section class="request-info" aria-label="Diagnóstico da conexão">
+        <div><strong>Endereço realmente consultado</strong>
+          <code id="requestedUrl">https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1?</code>
+        </div>
+        <p id="requestInfo" aria-live="polite">Aguardando a resposta do servidor. Abrir a URL em outra aba não garante que o site possa ler os dados.</p>
+      </section>
 
       <section class="stats" aria-label="Estatísticas das rodadas oficiais">
         <div class="stat"><span>Rodadas recebidas</span><strong id="sampleTotal">—</strong><small>Máximo de 100 por consulta</small></div>

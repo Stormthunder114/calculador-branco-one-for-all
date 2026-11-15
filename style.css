@@ -78,3 +78,9 @@ footer{border-top:1px solid #293e55;text-align:center;font-size:.75rem;padding-t
 :focus-visible{outline:3px solid #ffe6a2;outline-offset:3px}
 @media(max-width:940px){.hero{grid-template-columns:1fr}.hero-heading{padding:0}.hero-heading h1{margin:15px 0}.status-panel{min-height:235px}.stats{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:610px){.shell{padding:14px 12px 26px}.topbar{padding-bottom:18px}.brand-icon{width:40px;height:40px;font-size:1.35rem}.brand strong{font-size:.89rem}.brand small{font-size:.6rem}.source-link{font-size:.69rem;padding:7px 8px;white-space:normal;max-width:170px;text-align:center}.hero-heading p{font-size:.9rem}.status-panel{padding:18px}.stat{padding:13px}.stat strong{font-size:1.95rem}.panel{padding:15px}.panel-title{flex-direction:column;gap:10px}.experiment-overview{grid-template-columns:repeat(2,1fr)}.rounds{gap:7px}.round{width:33px;height:33px;font-size:.77rem}}
+
+/* Diagnóstico de uma única origem, visível inclusive em dispositivos móveis. */
+.request-info{margin:-5px 0 22px;padding:13px 17px;border-radius:12px;background:#12263a;border:1px solid #38516a}
+.request-info strong{display:block;color:#aeead9;font-size:.77rem;margin-bottom:6px}
+.request-info code{display:block;color:#e5f2ff;font-size:.74rem;overflow-wrap:anywhere;white-space:normal}
+.request-info p{color:#b7cadc;font-size:.81rem;margin:9px 0 0}

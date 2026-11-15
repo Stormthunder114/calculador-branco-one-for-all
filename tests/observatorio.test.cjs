@@ -151,3 +151,20 @@ test("Falha CORS/rede não exibe dados antigos como sucesso",async()=>{
   assert.equal(document.getElementById("statusBadge").textContent,"Conexão indisponível");
   assert.match(document.getElementById("notice").textContent,/CORS/);
 });
+
+
+test("Identifica na tela a URL realmente utilizada sem datas",()=>{
+  const {ctx,document}=harness();
+  assert.equal(document.getElementById("requestedUrl").textContent,
+    "https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1?");
+  assert.equal(ctx.buildApiUrl(),document.getElementById("requestedUrl").textContent);
+});
+test("Falha sem status HTTP informa CORS ou rede, não inventa um código",async()=>{
+  const {ctx,document}=harness();
+  ctx.fetch=async()=>{throw new TypeError("Failed to fetch")};
+  await ctx.updateLive();
+  const reason=document.getElementById("requestInfo").textContent;
+  assert.match(reason,/CORS/);
+  assert.match(reason,/falha de rede/);
+  assert.doesNotMatch(reason,/HTTP (403|429|451)/);
+});
