@@ -72,3 +72,25 @@ footer{border-top:1px solid var(--stroke);padding-top:20px;text-align:center;fon
 :focus-visible{outline:3px solid #ffd36a;outline-offset:3px}
 @media(max-width:920px){.stats{grid-template-columns:repeat(3,minmax(0,1fr))}.stats .tile:last-child{grid-column:span 2}.hero{grid-template-columns:1fr}.hero-copy{padding:6px 0}.hero-control{min-height:230px}}
 @media(max-width:650px){.wrap{padding:14px 12px 24px}.topbar{padding-bottom:12px}.old-link{font-size:.72rem;padding:8px}.brand strong{font-size:.86rem}.brand small{font-size:.72rem}.logo{width:38px;height:38px}.hero-copy h1{font-size:2.45rem}.hero-copy p{font-size:.94rem}.hero-control{padding:19px}.stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.stats .tile:last-child{grid-column:span 2}.tile{padding:14px}.tile span{min-height:auto}.tile strong{margin:9px 0 5px}.panel{padding:16px}.section-heading{flex-direction:column;gap:12px}.legend{flex-wrap:wrap}.two-columns{grid-template-columns:1fr}.manual{font-size:.74rem;padding:10px 3px}}
+
+/* Exploração histórica própria: filtros, contagens, replay e entrada por números. */
+.sample-toolbar{display:flex;gap:13px;align-items:center;flex-wrap:wrap;margin:0 0 14px}
+.sample-toolbar label,.paste-actions label{font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:8px}
+.sample-toolbar select,.paste-actions select{background:#24374f;color:#e9f4ff;border:1px solid #4e6681;border-radius:9px;padding:9px;font:inherit;max-width:100%}
+.color-distribution{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.color-distribution div{border-radius:12px;background:#1e3047;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:9px}
+.color-distribution span{font-size:.81rem;color:#c6d6e9}
+.color-distribution strong{font-size:.95rem;white-space:nowrap}
+.sample-summary{color:var(--muted);font-size:.81rem;margin:0 0 14px}
+#recentBalls{max-height:305px;overflow-y:auto;scrollbar-width:thin;align-content:flex-start;padding:3px 2px 10px}
+#recentBalls .ball{font-size:.76rem}
+.replay-panel{border-radius:11px;background:#102136;padding:15px}
+#replayPosition{width:100%;accent-color:var(--teal);cursor:pointer}
+#replayPosition:disabled{cursor:not-allowed}
+.replay-caption{font-size:.86rem;color:#c9dcf0;margin:8px 0 12px}
+.paste-panel textarea{box-sizing:border-box;width:100%;background:#0f2033;border:1px solid #405b76;border-radius:10px;color:#f4f7fb;resize:vertical;padding:12px;min-height:82px;font-size:1rem;font-family:ui-monospace,monospace}
+.form-label{display:block;font-size:.83rem;color:#cddced;margin-bottom:8px}
+.paste-actions{display:flex;align-items:end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:12px 0}
+.paste-actions label{flex-wrap:wrap}.paste-actions button{font-weight:700}
+.external-reference{font-size:.83rem;white-space:nowrap}
+@media(max-width:650px){.color-distribution{grid-template-columns:1fr}.color-distribution div{padding:9px 12px}.sample-toolbar select{max-width:175px}.paste-actions{display:block}.paste-actions button{margin-top:12px;width:100%}}

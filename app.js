@@ -136,7 +136,86 @@ function fmt(t) { return dateFormatter.format(new Date(t)); }
 function hm(t) { return hourFormatter.format(new Date(t)); }
 function ballsHTML(list) {
   return list.map(r => '<span class="ball c' + r.c + '" title="' +
-    escapeHtml(fmt(r.t)) + '">' + (r.c === 0 ? "0" : "") + "</span>").join("");
+    escapeHtml(fmt(r.t)) + '" aria-label="' + escapeHtml((["Branco", "Amarelo", "Preto"][r.c] || "") + " às " + fmt(r.t)) +
+    '">' + (Number.isInteger(Number(r.roll)) && Number(r.roll) >= 0 && Number(r.roll) <= 14 ? Number(r.roll) : (r.c === 0 ? "0" : "")) + "</span>").join("");
+}
+
+let replayPos = null;
+function renderSample() {
+  const take = Number($("sampleCount").value || 200);
+  const selectedColor = $("sampleColor").value || "all";
+  const sample = records.slice(-Math.min(200,Math.max(50,take))).reverse();
+  const counts = [0,0,0];
+  for (const row of sample) counts[row.c]++;
+  const labels = ["sampleWhite", "sampleYellow", "sampleBlack"];
+  labels.forEach((id,c) => {
+    $(id).textContent = sample.length ? counts[c] + " (" + (100*counts[c]/sample.length).toFixed(1).replace(".",",") + "%)" : "0";
+  });
+  const visible = selectedColor === "all" ? sample : sample.filter(r => r.c === Number(selectedColor));
+  $("sampleSummary").textContent = sample.length ?
+    sample.length + " rodadas salvas nesta amostra; " + visible.length + " exibidas após o filtro. A amostra é histórica, não preditiva." :
+    "Ainda não há dados coletados. O filtro não altera o cálculo dos sinais.";
+  $("recentBalls").innerHTML = ballsHTML(visible);
+  if (!sample.length) $("recentBalls").textContent = "Nenhuma rodada recebida. Você pode usar a análise de números mais abaixo.";
+  else if (!visible.length) $("recentBalls").textContent = "Nenhuma rodada dessa cor na amostra.";
+}
+function renderReplay() {
+  const sample = records.slice(-200);
+  if (replayPos === null || (replayPos === 0 && sample.length > 0) || replayPos > sample.length) replayPos = sample.length;
+  const slider = $("replayPosition");
+  slider.max = String(sample.length || 1);
+  slider.min = "1";
+  slider.disabled = !sample.length;
+  slider.value = String(Math.max(1,replayPos));
+  if (!sample.length) {
+    $("replayState").textContent = "Nenhuma rodada recebida para o replay.";
+    $("replayBalls").textContent = "";
+    return;
+  }
+  const row = sample[Math.max(1,replayPos) - 1];
+  $("replayState").textContent = "Rodada " + replayPos + "/" + sample.length +
+    " · " + fmt(row.t) + " · " + ["Branco","Amarelo","Preto"][row.c];
+  $("replayBalls").innerHTML = ballsHTML(sample.slice(Math.max(0,replayPos-29),replayPos));
+}
+function parsePastedNumbers(text) {
+  const matches = [];
+  for (const rawLine of String(text).split(/\r?\n/)) {
+    const line = rawLine.trim().replace(/^Image:\s*/i,"");
+    if (!line) continue;
+    if (/^branco$/i.test(line)) { matches.push(0); continue; }
+    if (/^(?:0|[1-9]|1[0-4])$/.test(line)) {
+      matches.push(Number(line));
+      continue;
+    }
+    if (/^(?:(?:0|[1-9]|1[0-4])(?:[\s,;|]+|$))+$/.test(line)) {
+      matches.push(...line.split(/[\s,;|]+/).filter(Boolean).map(Number));
+    }
+  }
+  return matches.slice(0,500);
+}
+function analyzePasted() {
+  let nums = parsePastedNumbers($("pasteRolls").value);
+  if ($("pasteOrder").value !== "old") nums = nums.reverse();
+  if (!nums.length) {
+    $("pasteResult").textContent = "Cole números de 0 a 14, separados por espaço, vírgula ou linha.";
+    $("pasteBalls").innerHTML = "";
+    return;
+  }
+  const colors = nums.map(n => n === 0 ? 0 : n <= 7 ? 1 : 2);
+  const pseudo = nums.slice(-45).map((roll,i) => ({ c: colors[colors.length-Math.min(nums.length,45)+i], roll, t: Date.now() }));
+  $("pasteBalls").innerHTML = pseudo.map(r => '<span class="ball c' + r.c + '">' + r.roll + '</span>').join("");
+  const index = colors.findIndex((c,i) => i > 0 && colors[i-1] === 1 && c === 1);
+  if (index < 0) {
+    $("pasteResult").textContent = nums.length + " números analisados. Não apareceu um par consecutivo da cor 1–7 neste recorte.";
+    return;
+  }
+  const after = colors.slice(index+1,index+12);
+  const hit = after.indexOf(0);
+  const outcome = hit >= 0 ? "Branco encontrado na tentativa " + (hit+1) + "/11." :
+    after.length < 11 ? "Sequência incompleta: " + after.length + "/11 rodadas após o par." :
+    "11 rodadas sem branco após o primeiro par.";
+  $("pasteResult").textContent = nums.length + " números analisados. " + outcome +
+    " É uma análise do recorte colado, sem validação da primeira ocorrência por hora.";
 }
 function render() {
   const outcomes = groupHours();
@@ -152,8 +231,8 @@ function render() {
   $("rowsCount").textContent = records.length.toLocaleString("pt-BR") + " rodadas armazenadas";
   const last = records[records.length-1];
   $("lastRound").textContent = last ? "Última rodada recebida: " + fmt(last.t) : "Nenhuma rodada recebida";
-  $("recentBalls").innerHTML = ballsHTML(records.slice(-26).reverse());
-  if (!records.length) $("recentBalls").textContent = "Os resultados aparecerão aqui após a primeira conexão.";
+  renderSample();
+  renderReplay();
 
   const nowStart = Math.floor(Date.now() / HOUR) * HOUR;
   const current = outcomes.find(x => x.start === nowStart);
@@ -223,12 +302,13 @@ async function updateData() {
         tell("Primeira página recebida. Consultando a segunda após uma pausa...", "normal");
         await pause(PAGE_DELAY);
       }
-      const url = API + "?startDate=" + encodeURIComponent(CUTOFF_ISO) +
+      const requestStart = new Date(Math.max(CUTOFF, Date.now() - 3 * HOUR)).toISOString();
+      const url = API + "?startDate=" + encodeURIComponent(requestStart) +
         "&endDate=" + encodeURIComponent(ending) + "&page=" + page;
       let response;
       try { response = await fetch(url, { method: "GET", mode: "cors", cache: "no-store", credentials: "omit" }); }
       catch (_) {
-        throw new Error("A Blitz não autorizou a conexão do navegador ou a rede falhou. Os dados salvos continuam disponíveis.");
+        throw new Error("Não houve resposta HTTP legível da Blitz. Pode ser CORS, indisponibilidade de rede ou bloqueio. Não é possível confirmar a causa somente pela página. Seus dados salvos foram preservados.");
       }
       if (response.status === 429) {
         const raw = response.headers.get("Retry-After");
@@ -238,6 +318,7 @@ async function updateData() {
         localStorage.setItem("ofa_blitz_next_allowed_v2", String(nextAllowed));
         throw new Error("A Blitz pediu uma pausa (limite 429). A próxima tentativa foi adiada.");
       }
+      if (response.status === 403 || response.status === 401) throw new Error("A Blitz negou o acesso (HTTP " + response.status + "). Não tentaremos contornar a restrição.");
       if (!response.ok) throw new Error("A Blitz respondeu com erro HTTP " + response.status + ".");
       const body = await response.json();
       const batch = Array.isArray(body.records) ? body.records :
@@ -302,6 +383,13 @@ function exportCopy() {
   document.body.appendChild(link); link.click(); link.remove();
   setTimeout(() => URL.revokeObjectURL(link.href),1000);
 }
+$("sampleCount").addEventListener("change", renderSample);
+$("sampleColor").addEventListener("change", renderSample);
+$("replayPosition").addEventListener("input", value => {
+  replayPos = Number($("replayPosition").value);
+  renderReplay();
+});
+$("pasteAnalyzeBtn").addEventListener("click", analyzePasted);
 $("updateBtn").addEventListener("click", updateData);
 $("whiteBtn").addEventListener("click", () => addTraining(0));
 $("yellowBtn").addEventListener("click", () => addTraining(1));

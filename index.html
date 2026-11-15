@@ -44,6 +44,16 @@
 
       <section class="panel">
         <div class="section-heading"><div><h2>Últimas rodadas recebidas</h2><p id="rowsCount">0 rodadas armazenadas</p></div><span class="legend"><i class="dot white"></i> Branco <i class="dot yellow"></i> Amarelo <i class="dot black"></i> Preto</span></div>
+        <div class="sample-toolbar">
+          <label>Mostrar <select id="sampleCount" aria-label="Número de rodadas"><option value="50">50 rodadas</option><option value="100">100 rodadas</option><option value="200" selected>200 rodadas</option></select></label>
+          <label>Destacar <select id="sampleColor" aria-label="Filtro de cor"><option value="all">Todas as cores</option><option value="0">Branco</option><option value="1">Amarelo</option><option value="2">Preto</option></select></label>
+        </div>
+        <div class="color-distribution" aria-label="Frequências na amostra">
+          <div><span>⚪ Branco</span><strong id="sampleWhite">0</strong></div>
+          <div><span>🟡 Amarelo</span><strong id="sampleYellow">0</strong></div>
+          <div><span>⚫ Preto</span><strong id="sampleBlack">0</strong></div>
+        </div>
+        <p class="sample-summary" id="sampleSummary">Sem resultados armazenados. A amostra não representa previsão.</p>
         <div id="recentBalls" class="balls" aria-label="Cores das rodadas recentes">Os resultados aparecerão aqui após a primeira conexão.</div>
       </section>
 
@@ -57,6 +67,32 @@
         </div>
       </section>
 
+      <section class="panel">
+        <div class="section-heading">
+          <div><h2>Replay do histórico coletado</h2><p>Volte no tempo e examine as últimas 200 rodadas salvas, sem alterar as estatísticas.</p></div>
+        </div>
+        <div class="replay-panel">
+          <input id="replayPosition" type="range" min="0" max="0" value="0" aria-label="Posição do replay" disabled>
+          <div class="replay-caption" id="replayState">Nenhum registro disponível para rever.</div>
+          <div class="balls small-balls" id="replayBalls"></div>
+        </div>
+      </section>
+      <section class="panel paste-panel">
+        <div class="section-heading">
+          <div><h2>Analisar números sem JSON</h2><p>Copie números de 0 a 14 de um histórico e cole aqui. Não precisa de programação.</p></div>
+          <a class="external-reference" href="https://historicosblaze.com/results/blitz/double" target="_blank" rel="noopener noreferrer">Ver histórico externo</a>
+        </div>
+        <label for="pasteRolls" class="form-label">Números de 0 a 14, separados por espaço, vírgula ou linha. Números 1–7 correspondem à cor 1 (amarelo na nossa regra; vermelho no site consultado).</label>
+        <textarea id="pasteRolls" rows="3" spellcheck="false" placeholder="12 2 6 0 8 5 1 4 0 ..."></textarea>
+        <div class="paste-actions">
+          <label>Ordem dos resultados
+            <select id="pasteOrder"><option value="recent">Mais recentes primeiro (site de históricos)</option><option value="old">Mais antigos primeiro</option></select>
+          </label>
+          <button type="button" class="secondary" id="pasteAnalyzeBtn">Analisar números</button>
+        </div>
+        <div id="pasteResult" class="training-state" aria-live="polite">A análise colada é independente dos testes por hora e não entra nos acertos reais.</div>
+        <div id="pasteBalls" class="balls small-balls"></div>
+      </section>
       <section class="two-columns">
         <details class="panel collapsible">
           <summary><span><strong>Testar as cores manualmente</strong><small>Para entender a contagem sem depender da conexão</small></span><span class="chevron">+</span></summary>
