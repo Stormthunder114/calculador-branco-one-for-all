@@ -42,6 +42,14 @@ try:
         if pos>=0: print("TAG_SAMPLE",needle,repr(html[max(0,pos-230):pos+340])[:610])
     for marker in ['data-result=', 'data-created-at=', 'data-result-id=', 'data-record-id=']:
         print("ATTRIBUTE", marker, html.count(marker))
+    for needle in ['created_at', 'data-result']:
+        offsets=[m.start() for m in re.finditer(needle,html)]
+        for idx in [3,20,50,150]:
+            if len(offsets)>idx:
+                pos=offsets[idx]
+                print("REPEATED_SAMPLE",needle,idx,repr(html[max(0,pos-110):pos+200])[:360])
+    for needle in ['data-sveltekit', 'results?_','rest/v1/results', 'result_number', 'round_id', 'value', 'roll', 'created_on', 'data-hash']:
+        print("MARKER",needle,html.count(needle))
 
 except Exception as exc:
     print("PUBLIC_PAGE_UNAVAILABLE",type(exc).__name__,str(exc)[:200])
