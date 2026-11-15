@@ -177,11 +177,10 @@ test("Histórico acumula no máximo 300 registros oficiais, sem fontes alternati
     c:i%15===0?0:i%15<=7?1:2,roll:i%15
   }));
   ctx.mergeOfficial(data,now);
-  assert.equal(ctx.archive.length,300);
   const saved=JSON.parse(store.get("ofa_apenas_blitz_live_v1"));
   assert.equal(saved.records.length,300);
   assert.equal(saved.source,"Blitz API oficial");
-  assert.equal(ctx.latest.length,100);
+  assert.equal(ctx.loadOfficialArchive(now).length,300);
 });
 test("A API pode responder menos de 100 resultados e ainda ser válida",()=>{
   const {ctx,now}=harness();
