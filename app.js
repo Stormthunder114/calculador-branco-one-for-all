@@ -28,7 +28,7 @@ const hourFormatter = new Intl.DateTimeFormat("pt-BR", {
   timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
 });
 let sourceMode = localStorage.getItem(SOURCE_KEY) === "official" ? "official" : "historicos";
-let records = readStorage(sourceMode === "official" ? OFFICIAL_STORE : STORE, []);
+let records = loadSavedRecords(sourceMode === "official" ? OFFICIAL_STORE : STORE);
 let training = readStorage(MANUAL_STORE, []);
 let updating = false;
 let nextAllowed = Number(localStorage.getItem("ofa_feed_next_allowed_v3") || 0);
@@ -38,6 +38,17 @@ function readStorage(key, fallback) {
     const value = JSON.parse(localStorage.getItem(key) || "null");
     return Array.isArray(value) ? value : fallback;
   } catch (_) { return fallback; }
+}
+function loadSavedRecords(key) {
+  const saved = readStorage(key, []);
+  const dedup = new Map();
+  for (const row of saved) {
+    if (!row || !row.id || !Number.isFinite(row.t) ||
+        row.t < CUTOFF || row.t > Date.now() + 120000 ||
+        ![0, 1, 2].includes(row.c)) continue;
+    dedup.set(String(row.id),row);
+  }
+  return [...dedup.values()].sort((a,b)=>a.t-b.t).slice(-LIMIT_STORE);
 }
 function tell(message, kind) {
   const el = $("notice");
@@ -152,7 +163,7 @@ function switchSource(mode) {
   if (!["official", "historicos"].includes(mode)) return;
   sourceMode = mode;
   localStorage.setItem(SOURCE_KEY, mode);
-  records = readStorage(mode === "official" ? OFFICIAL_STORE : STORE, []);
+  records = loadSavedRecords(mode === "official" ? OFFICIAL_STORE : STORE);
   $("sourceSelect").value = mode;
   render();
   if (mode === "historicos") {
@@ -185,7 +196,7 @@ function importOfficialText(input) {
   const official = parseOfficialPayload(input);
   sourceMode = "official";
   localStorage.setItem(SOURCE_KEY,sourceMode);
-  records = readStorage(OFFICIAL_STORE,[]);
+  records = loadSavedRecords(OFFICIAL_STORE);
   const count = mergeRecords(official);
   $("sourceSelect").value = "official";
   render();
@@ -454,13 +465,6 @@ function refreshCooldown() {
     }
   }
   $("testOfficialAuto").disabled = officialChecking || Date.now() < officialPauseUntil();
-  return;
-  const remaining = nextAllowed - Date.now();
-  $("updateBtn").disabled = updating || remaining > 0;
-  if (!updating) {
-    $("updateBtn").textContent = remaining > 0 ?
-      "Atualizado · recarregar às " + hm(nextAllowed) : "Atualizar resultados";
-  }
 }
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function updateData() {
