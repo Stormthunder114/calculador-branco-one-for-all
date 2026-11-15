@@ -34,6 +34,39 @@
 
       <div class="notice normal" id="notice" role="status" aria-live="polite">Fonte ativa: Históricos Blaze, atualizada periodicamente pelo GitHub. A API oficial da Blitz retornou HTTP 451 durante o teste de coleta automática em 15/11/2026. Não estamos contornando esse bloqueio.</div>
 
+      <section class="panel official-import">
+        <div class="section-heading"><div>
+          <h2>Resultados da API oficial da Blitz</h2>
+          <p>Você consegue abrir a API no seu navegador. Use a cópia da página para atualizar os resultados oficiais no One For All, sem editar JSON.</p>
+        </div><span class="state" id="sourceLabel">Fonte: Históricos Blaze</span></div>
+        <div class="import-steps">
+          <div><span class="step-number">1</span><strong>Abra os resultados da Blitz</strong>
+            <p>Na aba que abrir, pressione <kbd>Ctrl + A</kbd> e depois <kbd>Ctrl + C</kbd> para copiar.</p>
+            <a id="openOfficialApi" class="secondary import-link" href="https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1" target="_blank" rel="noopener noreferrer">Abrir 100 resultados oficiais</a>
+          </div>
+          <div><span class="step-number">2</span><strong>Volte aqui e clique abaixo</strong>
+            <p>O navegador solicitará sua autorização para ler o texto copiado.</p>
+            <button type="button" class="primary" id="clipboardImport">Atualizar usando o que copiei</button>
+          </div>
+        </div>
+        <p class="import-message" id="importMessage" role="status" aria-live="polite">Não exige login nem programação. Os resultados ficam salvos só no seu navegador.</p>
+        <details>
+          <summary>Se o botão não conseguir ler o texto copiado</summary>
+          <div class="details-body">
+            <p>Clique no campo abaixo, pressione <kbd>Ctrl + V</kbd> e depois em Importar. O site lê o texto automaticamente.</p>
+            <textarea id="officialPaste" rows="4" spellcheck="false" placeholder="Cole aqui o conteúdo completo da página da API"></textarea>
+            <button type="button" class="secondary" id="manualOfficialImport">Importar resultados colados</button>
+          </div>
+        </details>
+        <div class="source-control">
+          <label for="sourceSelect">Resultados exibidos</label>
+          <select id="sourceSelect">
+            <option value="historicos">Históricos Blaze (atualização horária)</option>
+            <option value="official">Blitz oficial (minhas importações)</option>
+          </select>
+        </div>
+      </section>
+
       <section class="stats" aria-label="Resumo da validação">
         <div class="tile"><span>Teste anterior</span><strong>3 de 5</strong><small>3 acertos · 2 falhas</small></div>
         <div class="tile"><span>Novos testes concluídos</span><strong id="newTests">0</strong><small>Somente dados válidos</small></div>
