@@ -122,7 +122,7 @@ test("11 rodadas sem branco é falha",()=>{
 test("Lacuna na sequência não gera acerto nem falha",()=>{
   const {ctx}=harness(START+10*60000);
   const data=singleSequence(START,[1,1,2,2,2,2,2,2,0]);
-  data[3].t+=240000;
+  data.slice(3).forEach(r=>{r.t+=240000;});
   ctx.mergeOfficial(data,START+10*60000);
   assert.equal(ctx.hourResults(START+10*60000)[0].status,"incompleto");
 });
