@@ -173,3 +173,51 @@ test('trocar a fonte conserva arquivos separados no navegador',()=>{
   assert.equal(ctx.groupHours().length,1);
   assert.equal(JSON.parse(ctx.localStorage.getItem('ofa_blitz_records_v2')).length,historySize);
 });
+
+
+test('cache antigo anterior ao corte é descartado ao carregar', () => {
+  const ctx=harness();
+  const cached=[
+    {id:'antigo',t:START-86400000,c:1,roll:1},
+    {id:'atual',t:START+1000,c:0,roll:0},
+    {id:'tempo-invalido',t:NaN,c:1,roll:3}
+  ];
+  ctx.localStorage.setItem('ofa_blitz_records_v2',JSON.stringify(cached));
+  assert.deepEqual(Array.from(ctx.loadSavedRecords('ofa_blitz_records_v2'),r=>r.id),['atual']);
+});
+test('dados anteriores à hora atual aparecem identificados como antigos', () => {
+  const ctx=harness(START+60*60000);
+  ctx.mergeRecords(sequence([1,1,0],START+1000));
+  ctx.render();
+  assert.match(ctx.document.getElementById('lastRound').textContent,/DADOS ANTIGOS/);
+  assert.match(ctx.document.getElementById('freshnessLabel').textContent,/NÃO são resultados ao vivo/);
+  assert.match(ctx.document.getElementById('currentState').textContent,/desatualizado/);
+});
+test('uma consulta CORS bem-sucedida usa 100 registros oficiais e separa as fontes', async () => {
+  const ctx=harness(START+60*60000);
+  const rows=Array.from({length:100},(_,i)=>({
+    id:i+10000,created_at:new Date(START+1000+i*15000).toISOString(),
+    roll:i%15,color:i%15===0?0:i%15<=7?1:2
+  }));
+  let attempts=0;
+  ctx.fetch=async (url,options)=>{
+    attempts++;
+    assert.match(url,/startDate=.*endDate=.*page=1/);
+    assert.equal(options.mode,'cors');
+    return {status:200,ok:true,json:async()=>({records:rows})};
+  };
+  await ctx.tryOfficialAuto();
+  assert.equal(attempts,1);
+  assert.equal(ctx.localStorage.getItem('ofa_active_source_v1'),'official');
+  assert.equal(JSON.parse(ctx.localStorage.getItem('ofa_blitz_official_manual_v1')).length,100);
+  assert.match(ctx.document.getElementById('officialAutoStatus').textContent,/funcionando/);
+});
+test('falha ao ler a API interrompe novas tentativas automáticas', async () => {
+  const ctx=harness();
+  let attempts=0;
+  ctx.fetch=async()=>{attempts++;throw new Error('Failed to fetch')};
+  await ctx.tryOfficialAuto();
+  await ctx.tryOfficialAuto();
+  assert.equal(attempts,1);
+  assert.ok(Number(ctx.localStorage.getItem('ofa_blitz_auto_pause_until_v1')) > START+HOUR);
+});
