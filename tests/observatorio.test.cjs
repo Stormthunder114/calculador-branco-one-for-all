@@ -1,223 +1,155 @@
-const { test } = require('node:test');
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const vm = require('node:vm');
+const {test}=require("node:test");
+const assert=require("node:assert/strict");
+const fs=require("node:fs");
+const vm=require("node:vm");
 
-const source = fs.readFileSync('app.js', 'utf8');
-const START = Date.parse('2026-11-15T04:00:00.000Z');
+const JS=fs.readFileSync("app.js","utf8");
+const HTML=fs.readFileSync("index.html","utf8");
+const START=Date.parse("2026-11-15T05:00:00.000Z");
 
-function harness(now = START + 60 * 60000) {
-  const store = new Map();
-  const elements = new Map();
-  class Clock extends Date {
-    constructor(...args) { super(...(args.length ? args : [now])); }
-    static now() { return now; }
+function harness(now=START+52*60000){
+  const store=new Map(),elements=new Map(),events=new Map();
+  class FakeDate extends Date {
+    constructor(...args){super(...(args.length?args:[now]));}
+    static now(){return now;}
   }
-  const context = {
-    Date: Clock,
-    console,
-    localStorage: {
-      getItem: key => store.get(key) ?? null,
-      setItem: (key,value) => store.set(key,String(value)),
-      removeItem: key => store.delete(key),
-    },
-    document: { getElementById(id) {
-      if (!elements.has(id)) {
-        elements.set(id, {
-          textContent: '', innerHTML: '', disabled: false,
-          className: '', addEventListener: () => {},
-        });
-      }
+  const document={
+    hidden:false,
+    getElementById(id){
+      if(!elements.has(id))elements.set(id,{
+        id,textContent:"",innerHTML:"",className:"",disabled:false,href:"",
+        addEventListener:(name,cb)=>events.set(id+":"+name,cb),
+      });
       return elements.get(id);
-    }},
-    setInterval: () => 0,
+    },
+    addEventListener:(name,cb)=>events.set("document:"+name,cb),
   };
-  vm.createContext(context);
-  vm.runInContext(source, context, {filename:'app.js'});
-  return context;
+  const ctx={
+    document,Date:FakeDate,console,Intl,clearTimeout:()=>{},
+    setTimeout:()=>1,setInterval:()=>1,
+    localStorage:{
+      getItem:key=>store.has(key)?store.get(key):null,
+      setItem:(key,value)=>store.set(key,String(value)),
+      removeItem:key=>store.delete(key)
+    }
+  };
+  vm.createContext(ctx);
+  vm.runInContext(JS,ctx,{filename:"app.js"});
+  return {ctx,document,store,events,now};
 }
-function sequence(colors, at = START + 1000, step = 15_000) {
-  return colors.map((color,index) => ({
-    id: 'round-' + at + '-' + index,
-    created_at: new Date(at + index * step).toISOString(),
-    roll: color, color,
+function rows(now,count=100,step=30000){
+  return Array.from({length:count},(_,i)=>{
+    const roll=i%15;
+    return {id:"r"+i,roll,color:roll===0?0:roll<=7?1:2,
+      created_at:new Date(now-30000-i*step).toISOString()};
+  });
+}
+function singleSequence(start,colors,step=30000){
+  return colors.map((c,i)=>({
+    id:"s"+i,t:start+15000+i*step,c,
+    roll:c===0?0:c===1?2:11
   }));
 }
-function outcome(ctx, colors, at = START + 1000, step = 15_000) {
-  ctx.mergeRecords(sequence(colors, at, step));
-  return ctx.groupHours().find(x => x.start === START);
-}
-test('branco na 7ª tentativa após o primeiro par', () => {
-  const ctx = harness();
-  const result = outcome(ctx, [1,1,...[2,2,2,2,2,2,0,2,2,2,2]]);
-  assert.equal(result.state,'acerto');
-  assert.equal(result.attempt,7);
-  assert.equal(result.examined,7);
+test("Só existe uma fonte, sem histórico Blaze nem importação manual",()=>{
+  assert.match(JS,/blitz4\.casino\/api\/singleplayer-originals/);
+  assert.doesNotMatch(JS,/historicosblaze|clipboard|parsePastedNumbers|sourceMode|pasteRolls/i);
+  assert.doesNotMatch(HTML,/historicosblaze|clipboardImport|officialPaste|manualOfficialImport|testar as cores manualmente|atualizacao-automatica\.js/i);
 });
-test('11 rodadas sem branco é falha, sem procurar outro gatilho', () => {
-  const ctx = harness();
-  const result = outcome(ctx,[1,1,...Array(11).fill(1),0]);
-  assert.equal(result.state,'falha');
-  assert.equal(result.examined,11);
+test("Gera datas dinâmicas e consulta apenas a página 1",()=>{
+  const {ctx,now}=harness();
+  const url=new URL(ctx.buildApiUrl(now));
+  assert.equal(url.pathname,"/api/singleplayer-originals/originals/roulette_games/recent/history/1");
+  assert.equal(url.searchParams.get("page"),"1");
+  assert.equal(Date.parse(url.searchParams.get("endDate")),now);
+  assert.equal(now-Date.parse(url.searchParams.get("startDate")),48*3600000);
 });
-test('a 11ª tentativa ainda conta como acerto', () => {
-  const ctx = harness();
-  const result = outcome(ctx,[1,1,...Array(10).fill(2),0]);
-  assert.equal(result.state,'acerto');
-  assert.equal(result.attempt,11);
+test("Valida 100 resultados oficiais e organiza do antigo ao recente",()=>{
+  const {ctx,now}=harness();
+  const sample=ctx.normalizeOfficial({records:rows(now)},now);
+  assert.equal(sample.length,100);
+  assert.ok(sample[0].t<sample[99].t);
+  assert.equal(sample[99].id,"r0");
 });
-test('uma janela com menos de 11 rodadas não conta como falha', () => {
-  const ctx = harness(START + 2 * 60000);
-  const result = outcome(ctx,[1,1,2,2,2,2]);
-  assert.equal(result.state,'pendente');
-  assert.equal(result.examined,4);
+test("Rejeita número ou cor inconsistentes",()=>{
+  const {ctx,now}=harness();
+  assert.equal(ctx.validateRound({id:1,roll:0,color:1,created_at:new Date(now-30000).toISOString()},now),null);
+  assert.equal(ctx.validateRound({id:1,roll:12,color:1,created_at:new Date(now-30000).toISOString()},now),null);
+  assert.equal(ctx.validateRound({id:1,roll:7,color:1,created_at:new Date(now-30000).toISOString()},now).c,1);
 });
-test('dados iniciados tarde não geram gatilho supostamente primeiro', () => {
-  const ctx = harness();
-  const result = outcome(ctx,[1,1,...Array(11).fill(2)],START + 5*60000);
-  assert.equal(result.state,'incompleto');
-  assert.equal(result.trigger,null);
+test("Rejeita resultados do dia 13 como se fossem ao vivo no dia 15",()=>{
+  const {ctx,now}=harness();
+  const old=rows(now-2*86400000);
+  assert.throws(()=>ctx.normalizeOfficial({records:old},now));
+  const stale=rows(now-3*3600000);
+  assert.throws(()=>ctx.normalizeOfficial({records:stale},now),/antigos/);
 });
-test('lacuna no meio das rodadas impede classificar uma falha', () => {
-  const ctx=harness();
-  const rows=sequence([1,1],START+1000);
-  const later=sequence(Array(11).fill(2),START+5*60000);
-  ctx.mergeRecords([...rows,...later]);
-  const result=ctx.groupHours().find(x=>x.start===START);
-  assert.equal(result.state,'incompleto');
-});
-test('treino de cores não muda as estatísticas da coleta real', () => {
-  const ctx = harness();
-  const original=ctx.groupHours().length;
-  ctx.addTraining(1);
-  ctx.addTraining(1);
-  for(let i=0;i<6;i++)ctx.addTraining(2);
-  ctx.addTraining(0);
-  assert.equal(ctx.groupHours().length,original);
-  assert.equal(ctx.trainingState().state,'hit');
-  assert.equal(ctx.trainingState().count,7);
-});
-test('duplicação da mesma rodada não aumenta o histórico', () => {
-  const ctx=harness();
-  const input=sequence([1,1,2]);
-  assert.equal(ctx.mergeRecords(input),3);
-  assert.equal(ctx.mergeRecords(input),0);
-});
-
-
-test('lê sequência de números e ignora horários colados do site externo', () => {
-  const ctx=harness();
-  const values=Array.from(ctx.parsePastedNumbers('14\n15:01\n2\n15:00\nImage: Branco\n14:59\n7'));
-  assert.deepEqual(values,[14,2,0,7]);
-});
-test('contagens de cores de amostra de 200 são descritivas', () => {
-  const ctx=harness();
-  ctx.mergeRecords(sequence([0,1,2,1,0]));
-  ctx.render();
-  assert.match(ctx.document.getElementById('sampleWhite').textContent,/^2 \(40,0%\)/);
-  assert.match(ctx.document.getElementById('sampleYellow').textContent,/^2 \(40,0%\)/);
-  assert.match(ctx.document.getElementById('sampleBlack').textContent,/^1 \(20,0%\)/);
-});
-test('replay inicia no registro mais novo depois da primeira coleta', () => {
-  const ctx=harness();
-  ctx.mergeRecords(sequence([1,1,0]));
-  ctx.render();
-  assert.match(ctx.document.getElementById('replayState').textContent,/Rodada 3\/3/);
-});
-test('análise dos números colados não altera os acertos validados', () => {
-  const ctx=harness();
-  ctx.document.getElementById('pasteRolls').value='6 5 8 8 0';
-  ctx.document.getElementById('pasteOrder').value='old';
-  ctx.analyzePasted();
-  assert.match(ctx.document.getElementById('pasteResult').textContent,/tentativa 3\/11/);
-  assert.equal(ctx.groupHours().length,0);
-});
-
-
-test('importação da API oficial aceita 100 registros válidos sem misturar outra fonte',()=>{
-  const ctx=harness();
-  const rows=Array.from({length:100},(_,i)=>({
-    id:i+10000,created_at:new Date(START+1000+i*15000).toISOString(),
-    roll:i%15,color:i%15===0?0:i%15<=7?1:2
-  }));
-  const n=ctx.importOfficialText(JSON.stringify({records:rows,total_pages:1}));
-  assert.equal(n,100);
-  assert.equal(ctx.groupHours().length,1);
-  assert.equal(ctx.localStorage.getItem('ofa_active_source_v1'),'official');
-  assert.equal(JSON.parse(ctx.localStorage.getItem('ofa_blitz_official_manual_v1')).length,100);
-  assert.equal(ctx.localStorage.getItem('ofa_blitz_records_v2'),null);
-  assert.equal(ctx.importOfficialText(JSON.stringify({records:rows})),0);
-});
-test('códigos de cor inconsistentes são descartados na importação',()=>{
-  const ctx=harness();
-  const raw=[
-    {id:4,created_at:new Date(START+1000).toISOString(),roll:0,color:1},
-    {id:5,created_at:new Date(START+2000).toISOString(),roll:3,color:1}
-  ];
-  const imported=ctx.parseOfficialPayload(JSON.stringify({records:raw}));
-  assert.equal(imported.length,1);
-  assert.equal(imported[0].id,'of:5');
-});
-test('código não permite importação de conteúdo que não seja a resposta da API',()=>{
-  const ctx=harness();
-  assert.throws(()=>ctx.parseOfficialPayload('123, 4, 5'));
-  assert.throws(()=>ctx.parseOfficialPayload('{"hello":[]}'));
-});
-test('trocar a fonte conserva arquivos separados no navegador',()=>{
-  const ctx=harness();
-  ctx.mergeRecords(sequence([1,1,2]));
-  const historySize=JSON.parse(ctx.localStorage.getItem('ofa_blitz_records_v2')).length;
-  const raw={records:[{id:"unique",created_at:new Date(START+1000).toISOString(),roll:0,color:0}]};
-  ctx.importOfficialText(JSON.stringify(raw));
-  ctx.switchSource('historicos');
-  assert.equal(ctx.groupHours().length,1);
-  assert.equal(JSON.parse(ctx.localStorage.getItem('ofa_blitz_records_v2')).length,historySize);
-});
-
-
-test('cache antigo anterior ao corte é descartado ao carregar', () => {
-  const ctx=harness();
-  const cached=[
-    {id:'antigo',t:START-86400000,c:1,roll:1},
-    {id:'atual',t:START+1000,c:0,roll:0},
-    {id:'tempo-invalido',t:NaN,c:1,roll:3}
-  ];
-  ctx.localStorage.setItem('ofa_blitz_records_v2',JSON.stringify(cached));
-  assert.deepEqual(Array.from(ctx.loadSavedRecords('ofa_blitz_records_v2'),r=>r.id),['atual']);
-});
-test('dados anteriores à hora atual aparecem identificados como antigos', () => {
-  const ctx=harness(START+60*60000);
-  ctx.mergeRecords(sequence([1,1,0],START+1000));
-  ctx.render();
-  assert.match(ctx.document.getElementById('lastRound').textContent,/DADOS ANTIGOS/);
-  assert.match(ctx.document.getElementById('freshnessLabel').textContent,/NÃO são resultados ao vivo/);
-  assert.match(ctx.document.getElementById('currentState').textContent,/desatualizado/);
-});
-test('uma consulta CORS bem-sucedida usa 100 registros oficiais e separa as fontes', async () => {
-  const ctx=harness(START+60*60000);
-  const rows=Array.from({length:100},(_,i)=>({
-    id:i+10000,created_at:new Date(START+1000+i*15000).toISOString(),
-    roll:i%15,color:i%15===0?0:i%15<=7?1:2
-  }));
-  let attempts=0;
+test("Uma coleta real simulada atualiza somente os 100 oficiais",async()=>{
+  const {ctx,document,store,now}=harness();
+  const payload={records:rows(now),total_pages:999};
+  let calls=0;
   ctx.fetch=async (url,options)=>{
-    attempts++;
-    assert.match(url,/startDate=.*endDate=.*page=1/);
-    assert.equal(options.mode,'cors');
-    return {status:200,ok:true,json:async()=>({records:rows})};
+    calls++;
+    assert.match(url,/page=1/);
+    assert.equal(options.mode,"cors");
+    assert.equal(options.credentials,"omit");
+    return {status:200,ok:true,json:async()=>payload};
   };
-  await ctx.tryOfficialAuto();
-  assert.equal(attempts,1);
-  assert.equal(ctx.localStorage.getItem('ofa_active_source_v1'),'official');
-  assert.equal(JSON.parse(ctx.localStorage.getItem('ofa_blitz_official_manual_v1')).length,100);
-  assert.match(ctx.document.getElementById('officialAutoStatus').textContent,/funcionando/);
+  await ctx.updateLive();
+  assert.equal(calls,1);
+  assert.equal(document.getElementById("sampleTotal").textContent,"100");
+  assert.equal(document.getElementById("statusBadge").textContent,"Conectado à Blitz");
+  assert.match(document.getElementById("rounds").innerHTML,/class="round c/);
+  const archive=JSON.parse(store.get("ofa_apenas_blitz_live_v1"));
+  assert.equal(archive.source,"Blitz API oficial");
+  assert.equal(archive.records.length,100);
+  await ctx.updateLive();
+  assert.equal(calls,1,"O botão não deve fazer consultas repetidas imediatamente");
 });
-test('falha ao ler a API interrompe novas tentativas automáticas', async () => {
-  const ctx=harness();
-  let attempts=0;
-  ctx.fetch=async()=>{attempts++;throw new Error('Failed to fetch')};
-  await ctx.tryOfficialAuto();
-  await ctx.tryOfficialAuto();
-  assert.equal(attempts,1);
-  assert.ok(Number(ctx.localStorage.getItem('ofa_blitz_auto_pause_until_v1')) > START+60*60000);
+test("Uma sequência contínua registra branco na tentativa 7",()=>{
+  const {ctx}=harness(START+10*60000);
+  const sample=singleSequence(START,[1,1,2,2,2,2,2,2,0]);
+  ctx.mergeOfficial(sample,START+10*60000);
+  const outcome=ctx.hourResults(START+10*60000)[0];
+  assert.equal(outcome.status,"acerto");
+  assert.equal(outcome.attempt,7);
+});
+test("11 rodadas sem branco é falha",()=>{
+  const {ctx}=harness(START+10*60000);
+  ctx.mergeOfficial(singleSequence(START,[1,1,...Array(11).fill(2)]),START+10*60000);
+  const outcome=ctx.hourResults(START+10*60000)[0];
+  assert.equal(outcome.status,"falha");
+});
+test("Lacuna na sequência não gera acerto nem falha",()=>{
+  const {ctx}=harness(START+10*60000);
+  const data=singleSequence(START,[1,1,2,2,2,2,2,2,0]);
+  data.slice(3).forEach(r=>{r.t+=240000;});
+  ctx.mergeOfficial(data,START+10*60000);
+  assert.equal(ctx.hourResults(START+10*60000)[0].status,"incompleto");
+});
+test("HTTP 429 respeita o intervalo e não consulta repetidamente",async()=>{
+  const {ctx,document}=harness();
+  let count=0;
+  ctx.fetch=async()=>({ok:false,status:429,headers:{get:()=>String(600)}});
+  await ctx.updateLive();
+  assert.equal(document.getElementById("statusBadge").textContent,"Aguardando liberação");
+  await ctx.updateLive();
+  assert.match(document.getElementById("nextUpdate").textContent,/Nova tentativa/);
+});
+test("HTTP 451 encerra consulta automática sem fazer nova tentativa",async()=>{
+  const {ctx,document}=harness();
+  let count=0;
+  ctx.fetch=async()=>{count++;return {ok:false,status:451}};
+  await ctx.updateLive();
+  await ctx.updateLive();
+  assert.equal(count,1);
+  assert.equal(document.getElementById("statusBadge").textContent,"Acesso não autorizado");
+  assert.equal(document.getElementById("refreshBtn").disabled,true);
+});
+test("Falha CORS/rede não exibe dados antigos como sucesso",async()=>{
+  const {ctx,document}=harness();
+  ctx.fetch=async()=>{throw new TypeError("Failed to fetch")};
+  await ctx.updateLive();
+  assert.equal(document.getElementById("sampleTotal").textContent,"—");
+  assert.equal(document.getElementById("statusBadge").textContent,"Conexão indisponível");
+  assert.match(document.getElementById("notice").textContent,/CORS/);
 });

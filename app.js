@@ -1,618 +1,392 @@
 "use strict";
 
-/* ONE FOR ALL | Observatório Blitz
-   Nunca gera previsões nem horários de apostas.
-   Regras fixadas em 15/11/2026, sem ajuste após observar dados. */
-const CUTOFF_ISO = "2026-11-15T04:00:00.000Z"; // 15/11/2026 01h, Brasília
-const CUTOFF = Date.parse(CUTOFF_ISO);
-const HOUR = 3600000;
-const MAX_GAP = 150000;
-const COOLDOWN = 10 * 60000;
-const STORE = "ofa_blitz_records_v2";
-const OFFICIAL_STORE = "ofa_blitz_official_manual_v1";
-const SOURCE_KEY = "ofa_active_source_v1";
-const OFFICIAL_URL = "https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1";
-const AUTO_PAUSE_KEY = "ofa_blitz_auto_pause_until_v1";
-const AUTO_MIN_INTERVAL = 10 * 60000;
-let lastOfficialAutoCheck = 0;
-let officialChecking = false;
-let officialAutoWorking = false;
-const MANUAL_STORE = "ofa_blitz_treino_v2";
-const LIMIT_STORE = 7500;
-const $ = (id) => document.getElementById(id);
-const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
-  timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit",
-  year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+/* One For All — somente API oficial Blitz.
+   Um GET por ciclo (página 1, até 100 rodadas).
+   Não utiliza dados do Históricos Blaze nem importação manual. */
+const API = "https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1";
+const TIMEZONE = "America/Sao_Paulo";
+const POLL_MS = 120000;
+const CONTINUITY_MS = 150000;
+const FRESH_MS = 300000;
+const MAX_SERVER_AGE_MS = 600000;
+const HOUR_MS = 3600000;
+const MAX_ARCHIVE = 4000;
+const OFFICIAL_STORAGE = "ofa_apenas_blitz_live_v1";
+const FIRST_TEST_TIME = Date.parse("2026-11-15T04:00:00.000Z");
+const $ = id => document.getElementById(id);
+const clockFormat = new Intl.DateTimeFormat("pt-BR", {
+  timeZone:TIMEZONE, day:"2-digit", month:"2-digit", year:"numeric",
+  hour:"2-digit", minute:"2-digit", second:"2-digit", hourCycle:"h23"
 });
-const hourFormatter = new Intl.DateTimeFormat("pt-BR", {
-  timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+const shortTime = new Intl.DateTimeFormat("pt-BR", {
+  timeZone:TIMEZONE, hour:"2-digit", minute:"2-digit", hourCycle:"h23"
 });
-let sourceMode = localStorage.getItem(SOURCE_KEY) === "official" ? "official" : "historicos";
-let records = loadSavedRecords(sourceMode === "official" ? OFFICIAL_STORE : STORE);
-let training = readStorage(MANUAL_STORE, []);
-let updating = false;
-let nextAllowed = Number(localStorage.getItem("ofa_feed_next_allowed_v3") || 0);
+const labels = ["Branco", "Amarelo", "Preto"];
 
-function readStorage(key, fallback) {
+let latest = [];           // Só recebe resultado de consulta oficial bem-sucedida
+let archive = [];          // Também exclusivamente oficial, recuperado após uma consulta válida
+let state = "loading";     // loading, live, delayed, unavailable, rate-limited, denied
+let reason = "Conectando à API oficial...";
+let inFlight = false;
+let everConnected = false;
+let lastFetchedAt = 0;
+let lastRequestedAt = 0;
+let nextRequestAt = 0;
+let blockUntil = 0;
+let stopAutomatic = false;
+let pollingHandle = null;
+
+function formatTime(timestamp) {
+  return clockFormat.format(new Date(timestamp));
+}
+function formatHour(timestamp) {
+  return shortTime.format(new Date(timestamp));
+}
+function buildApiUrl(now = Date.now()) {
+  const start = new Date(now - 2 * 86400000).toISOString();
+  const end = new Date(now).toISOString();
+  return API + "?startDate=" + encodeURIComponent(start) +
+    "&endDate=" + encodeURIComponent(end) + "&page=1";
+}
+function validateRound(raw, now = Date.now()) {
+  if (!raw || raw.id === undefined || raw.id === null) return null;
+  const roll = Number(raw.roll), color = Number(raw.color);
+  if (!Number.isInteger(roll) || roll < 0 || roll > 14 ||
+      !Number.isInteger(color) || color < 0 || color > 2) return null;
+  if (color !== (roll === 0 ? 0 : roll <= 7 ? 1 : 2)) return null;
+  const sourceTime = String(raw.created_at || "");
+  if (!/(Z|[+-]\d\d:\d\d)$/i.test(sourceTime)) return null;
+  const t = Date.parse(sourceTime);
+  if (!Number.isFinite(t) || t > now+120000 || t < now-2*86400000-120000) return null;
+  return {id:String(raw.id),t,roll,c:color};
+}
+function normalizeOfficial(body, now = Date.now()) {
+  const rows = Array.isArray(body?.records) ? body.records :
+    (Array.isArray(body?.data?.records) ? body.data.records : null);
+  if (!rows) throw new Error("A API não retornou a lista esperada de rodadas.");
+  if (!rows.length) throw new Error("A API retornou uma lista vazia.");
+  const unique = new Map();
+  for (const raw of rows.slice(0,100)) {
+    const result = validateRound(raw,now);
+    if (result) unique.set(result.id,result);
+  }
+  const results = [...unique.values()].sort((a,b)=>a.t-b.t);
+  if (results.length < 80) throw new Error("A resposta da API veio incompleta ou possui dados inválidos.");
+  const newest = results[results.length-1];
+  if (now-newest.t > MAX_SERVER_AGE_MS) {
+    throw new Error("A API respondeu, mas os resultados estão antigos (última rodada " +
+      formatTime(newest.t) + "). Nenhum dado será apresentado como ao vivo.");
+  }
+  return results;
+}
+function loadOfficialArchive(now = Date.now()) {
   try {
-    const value = JSON.parse(localStorage.getItem(key) || "null");
-    return Array.isArray(value) ? value : fallback;
-  } catch (_) { return fallback; }
+    const payload = JSON.parse(localStorage.getItem(OFFICIAL_STORAGE) || "null");
+    if (!payload || payload.source !== "Blitz API oficial" || !Array.isArray(payload.records)) return [];
+    const safe = payload.records.filter(r =>
+      r && typeof r.id === "string" && Number.isFinite(r.t) &&
+      Number.isInteger(r.roll) && Number.isInteger(r.c) &&
+      r.c === (r.roll === 0 ? 0 : r.roll <= 7 ? 1 : 2) &&
+      r.t >= FIRST_TEST_TIME && r.t <= now + 120000 &&
+      r.t >= now-7*86400000
+    );
+    return safe.sort((a,b)=>a.t-b.t).slice(-MAX_ARCHIVE);
+  } catch (_) { return []; }
 }
-function loadSavedRecords(key) {
-  const saved = readStorage(key, []);
-  const dedup = new Map();
-  for (const row of saved) {
-    if (!row || !row.id || !Number.isFinite(row.t) ||
-        row.t < CUTOFF || row.t > Date.now() + 120000 ||
-        ![0, 1, 2].includes(row.c)) continue;
-    dedup.set(String(row.id),row);
+function mergeOfficial(newRows, now = Date.now()) {
+  const rows = new Map(archive.map(r=>[r.id,r]));
+  for (const row of newRows) rows.set(row.id,row);
+  archive = [...rows.values()].sort((a,b)=>a.t-b.t).slice(-MAX_ARCHIVE);
+  latest = newRows.slice(-100).reverse();
+  try {
+    localStorage.setItem(OFFICIAL_STORAGE,JSON.stringify({
+      source:"Blitz API oficial",saved_at:new Date(now).toISOString(),records:archive
+    }));
+  } catch (_) { /* armazenamento opcional; a página continua exibindo a coleta atual */ }
+}
+function hourResults(now = Date.now()) {
+  const records = archive.filter(r => r.t >= FIRST_TEST_TIME && r.t <= now+120000)
+    .sort((a,b)=>a.t-b.t);
+  const byHour = new Map();
+  records.forEach((r,index) => {
+    const hour = Math.floor(r.t/HOUR_MS)*HOUR_MS;
+    if (!byHour.has(hour)) byHour.set(hour,[]);
+    byHour.get(hour).push({...r,index});
+  });
+  const outcomes = [];
+  for (const [hour,rows] of byHour) {
+    const item = {hour,status:"incompleto",trigger:null,attempt:null,examined:0};
+    if (!rows.length || rows[0].t > hour+CONTINUITY_MS) {
+      outcomes.push(item); continue;
+    }
+    let triggerIndex = -1;
+    let gap = false;
+    for (let j=1; j<rows.length; j++) {
+      if (rows[j].t<=rows[j-1].t || rows[j].t-rows[j-1].t>CONTINUITY_MS) {
+        gap = true; break;
+      }
+      if (rows[j-1].c===1 && rows[j].c===1) {
+        triggerIndex=j; break;
+      }
+    }
+    if (gap) {outcomes.push(item);continue;}
+    if (triggerIndex<0) {
+      const last = rows[rows.length-1];
+      const fullHour = now>=hour+HOUR_MS && last.t>=hour+HOUR_MS-CONTINUITY_MS;
+      item.status = fullHour ? "sem-par" :
+        (now-last.t < CONTINUITY_MS ? "observando" : "incompleto");
+      outcomes.push(item);continue;
+    }
+    const trigger = rows[triggerIndex];
+    item.trigger=trigger.t;
+    item.status="pendente";
+    let previous=trigger;
+    for(let attempt=1;attempt<=11;attempt++) {
+      const next=records[trigger.index+attempt];
+      if (!next) {
+        item.status=now-previous.t<=CONTINUITY_MS?"pendente":"incompleto";
+        break;
+      }
+      if (next.t<=previous.t || next.t-previous.t>CONTINUITY_MS) {
+        item.status="incompleto";break;
+      }
+      item.examined=attempt;
+      if (next.c===0) {
+        item.status="acerto";item.attempt=attempt;break;
+      }
+      if (attempt===11) item.status="falha";
+      previous=next;
+    }
+    outcomes.push(item);
   }
-  return [...dedup.values()].sort((a,b)=>a.t-b.t).slice(-LIMIT_STORE);
+  return outcomes.sort((a,b)=>b.hour-a.hour);
 }
-function tell(message, kind) {
-  const el = $("notice");
-  el.textContent = message;
-  el.className = "notice " + (kind || "normal");
+function setStatus(type,message) {
+  state=type;
+  reason=message;
+  renderStatus();
 }
-function sanitizeRecord(raw) {
-  if (!raw || raw.id === null || raw.id === undefined) return null;
-  const color = Number(raw.color);
-  if (![0, 1, 2].includes(color)) return null;
-  const originalTime = String(raw.created_at || "");
-  const timeString = /(?:Z|[+-]\d{2}:\d{2})$/i.test(originalTime) ? originalTime : originalTime + "Z";
-  const time = Date.parse(timeString);
-  if (!Number.isFinite(time) || time < CUTOFF || time > Date.now() + 120000) return null;
-  return { id: String(raw.id), t: time, c: color, roll: raw.roll };
+function renderStatus() {
+  const dot=$("statusDot"),badge=$("statusBadge"),notice=$("notice");
+  dot.className="status-dot "+state;
+  badge.textContent={
+    loading:"Conectando...",live:"Conectado à Blitz",delayed:"Dados atrasados",
+    unavailable:"Conexão indisponível", "rate-limited":"Aguardando liberação",
+    denied:"Acesso não autorizado"
+  }[state] || "Indisponível";
+  notice.className="notice "+(["live"].includes(state)?"success":"loading"===state?"neutral":"warn");
+  notice.textContent=reason;
+  renderLastResult();
+  renderSchedule();
 }
-function mergeRecords(input) {
-  const map = new Map(records.filter(r => r && r.id).map(r => [r.id, r]));
-  let received = 0;
-  for (const raw of input) {
-    const row = sanitizeRecord(raw);
-    if (!row) continue;
-    if (!map.has(row.id)) received++;
-    map.set(row.id, row);
-  }
-  records = [...map.values()].sort((a,b) => a.t - b.t).slice(-LIMIT_STORE);
-  try { localStorage.setItem(sourceMode === "official" ? OFFICIAL_STORE : STORE, JSON.stringify(records)); }
-  catch (_) { tell("Não foi possível salvar todas as rodadas neste navegador.", "warn"); }
-  return received;
-}
-function officialApiLink() {
-  const now = new Date();
-  const start = new Date(now.getTime() - 2 * 86400000);
-  return OFFICIAL_URL +
-    "?startDate=" + encodeURIComponent(start.toISOString()) +
-    "&endDate=" + encodeURIComponent(now.toISOString()) + "&page=1";
-}
-function autoStatus(msg) {
-  const target = $("officialAutoStatus");
-  if (target) target.textContent = msg;
-}
-function officialPauseUntil() {
-  return Math.max(0,Number(localStorage.getItem(AUTO_PAUSE_KEY) || 0));
-}
-function pauseOfficialAuto(minutes, message) {
-  officialAutoWorking = false;
-  localStorage.setItem(AUTO_PAUSE_KEY,String(Date.now() + minutes * 60000));
-  autoStatus(message);
-  refreshCooldown();
-}
-async function tryOfficialAuto() {
-  if (officialChecking) return;
-  const until = officialPauseUntil();
-  if (Date.now() < until) {
-    autoStatus("Leitura oficial indisponível. Nova tentativa após " + fmt(until) +
-      ". Enquanto isso, use o histórico alternativo ou a importação manual.");
+function renderLastResult() {
+  const el=$("lastResult"),detail=$("lastResultDetails");
+  if (!latest.length) {
+    el.textContent="Sem resultados atuais";
+    detail.textContent="Não exibimos dados de fontes externas nem registros antigos.";
     return;
   }
-  if (Date.now() - lastOfficialAutoCheck < AUTO_MIN_INTERVAL) {
-    autoStatus("Nova consulta oficial permitida após " + fmt(lastOfficialAutoCheck + AUTO_MIN_INTERVAL) + ".");
+  const r=latest[0],age=Date.now()-r.t;
+  el.textContent=formatTime(r.t);
+  detail.textContent="Último número: "+r.roll+" · "+labels[r.c]+
+    (age>FRESH_MS?" · Atenção: resultados desatualizados.":" · Fonte oficial.");
+}
+function renderSchedule() {
+  const el=$("nextUpdate"),button=$("refreshBtn");
+  if (inFlight) {
+    el.textContent="Recebendo a primeira página (até 100 rodadas)...";
+    button.disabled=true;
+    button.textContent="Atualizando...";
     return;
   }
-  if (typeof fetch !== "function") return;
-  officialChecking = true;
-  lastOfficialAutoCheck = Date.now();
-  autoStatus("Verificando a leitura autorizada da API oficial...");
-  refreshCooldown();
+  if (stopAutomatic) {
+    el.textContent="Consulta automática suspensa; o servidor não autorizou o acesso.";
+    button.disabled=true;
+    button.textContent="Consulta bloqueada";
+    return;
+  }
+  if (Date.now()<blockUntil) {
+    el.textContent="Nova tentativa não antes de "+formatTime(blockUntil)+".";
+    button.disabled=true;
+    button.textContent="Aguardando intervalo";
+    return;
+  }
+  button.disabled=false;
+  button.textContent="Atualizar agora";
+  el.textContent=everConnected ?
+    "Atualização automática aproximadamente a cada 2 minutos, com a aba ativa.":
+    "A conexão será verificada automaticamente.";
+}
+function roundMarkup(row) {
+  return '<span class="round c'+row.c+'" title="'+formatTime(row.t)+
+    ' · '+labels[row.c]+'" aria-label="'+row.roll+' '+labels[row.c]+' às '+
+    formatTime(row.t)+'">'+row.roll+'</span>';
+}
+function renderRounds() {
+  const container=$("rounds");
+  if (!latest.length) {
+    container.className="rounds empty-rounds";
+    container.textContent="Nenhum resultado oficial disponível no momento.";
+    return;
+  }
+  container.className="rounds";
+  container.innerHTML=latest.map(roundMarkup).join("");
+}
+function renderStatistics() {
+  const counts=[0,0,0];
+  latest.forEach(r=>{counts[r.c]++;});
+  $("sampleTotal").textContent=latest.length?String(latest.length):"—";
+  ["White","Yellow","Black"].forEach((name,i)=>{
+    $("count"+name).textContent=latest.length?String(counts[i]):"—";
+    $("pct"+name).textContent=latest.length?
+      (counts[i]*100/latest.length).toFixed(1).replace(".",",")+"% das rodadas":"Na amostra";
+  });
+  $("sampleDescription").textContent=latest.length?
+    "Página 1 · "+latest.length+" rodadas da API oficial · "+
+    "Última: "+formatTime(latest[0].t)+" · Apenas dados recebidos diretamente.":
+    "Aguardando resposta da API oficial.";
+}
+function renderExperiments() {
+  const outcomes=hourResults();
+  const completed=outcomes.filter(x=>x.status==="acerto"||x.status==="falha");
+  const hits=completed.filter(x=>x.status==="acerto").length;
+  $("signalTotal").textContent=String(completed.length);
+  $("signalHits").textContent=String(hits);
+  $("signalMisses").textContent=String(completed.length-hits);
+  $("signalRate").textContent=completed.length?
+    (100*hits/completed.length).toFixed(1).replace(".",",")+"%":"—";
+  const strings={
+    "acerto":"Branco encontrado","falha":"Sem branco","pendente":"Acompanhando",
+    "observando":"Aguardando par","sem-par":"Sem par","incompleto":"Dados incompletos"
+  };
+  $("historyRows").innerHTML=outcomes.slice(0,24).map(x=>{
+    const attempts=x.status==="acerto" ? x.attempt+"/11" :
+      x.status==="falha" ? "11/11":
+      x.status==="pendente" ? x.examined+"/11":"—";
+    return '<tr><td>'+formatTime(x.hour)+'</td><td>'+
+      (x.trigger===null?"—":formatHour(x.trigger))+'</td><td><span class="result-status '+
+      x.status+'">'+strings[x.status]+'</span></td><td>'+attempts+'</td></tr>';
+  }).join("")||'<tr><td class="empty" colspan="4">Sem rodadas oficiais suficientes para avaliar uma hora.</td></tr>';
+}
+function render() {
+  renderRounds();
+  renderStatistics();
+  renderExperiments();
+  renderStatus();
+}
+function retryAfter(response,now) {
+  const header=response.headers?.get?.("Retry-After");
+  if (!header) return now+30*60000;
+  const seconds=Number(header);
+  let ms=Number.isFinite(seconds) && seconds>=0?seconds*1000:Date.parse(header)-now;
+  if (!Number.isFinite(ms)) ms=30*60000;
+  return now+Math.max(30*60000,Math.min(ms,86400000));
+}
+async function updateLive() {
+  if (inFlight || stopAutomatic || Date.now()<blockUntil) return;
+  if (lastRequestedAt && Date.now()-lastRequestedAt<POLL_MS) return;
+  if (typeof document !== "undefined" && document.hidden) return;
+  inFlight=true;
+  setStatus("loading","Consultando a página 1 da API oficial da Blitz...");
+  let controller=null,timeout=null;
   try {
-    const response = await fetch(officialApiLink(), {
-      method: "GET", mode: "cors", credentials: "omit", cache: "no-store"
+    controller=typeof AbortController!=="undefined" ? new AbortController():null;
+    if (controller) timeout=setTimeout(()=>controller.abort(),15000);
+    const requestedAt=Date.now();
+    lastRequestedAt=requestedAt;
+    const response=await fetch(buildApiUrl(requestedAt),{
+      method:"GET",mode:"cors",credentials:"omit",cache:"no-store",
+      ...(controller ? {signal:controller.signal}: {})
     });
-    if (response.status === 429) {
-      const header = response.headers.get("Retry-After");
-      const secs = Number(header);
-      const pauseMinutes = Number.isFinite(secs) && secs > 0 ?
-        Math.max(60, Math.min(Math.ceil(secs/60), 1440)) : 60;
-      pauseOfficialAuto(pauseMinutes, "Limite da Blitz (HTTP 429). A próxima tentativa foi adiada.");
+    if (response.status===429) {
+      blockUntil=retryAfter(response,Date.now());
+      setStatus("rate-limited","A Blitz limitou as consultas (HTTP 429). Respeitaremos o intervalo solicitado.");
       return;
     }
     if ([401,403,451].includes(response.status)) {
-      pauseOfficialAuto(24*60,
-        "A Blitz não autorizou esta consulta (HTTP " + response.status +
-        "). Não serão feitas novas consultas durante 24 horas.");
+      stopAutomatic=true;
+      setStatus("denied","A Blitz respondeu HTTP "+response.status+
+        ". A coleta automática foi suspensa; não tentaremos contornar esse bloqueio.");
       return;
     }
     if (!response.ok) {
-      pauseOfficialAuto(60,"A API respondeu HTTP " + response.status +
-        ". O site vai preservar o histórico e aguardar antes de tentar novamente.");
+      blockUntil=Date.now()+10*60000;
+      setStatus("unavailable","A API respondeu HTTP "+response.status+
+        ". Tentaremos novamente após um intervalo.");
       return;
     }
-    const body = await response.json();
-    const validated = parseOfficialPayload(JSON.stringify(body));
-    if (!validated.length) throw new Error("Sem rodadas válidas na resposta da Blitz.");
-    importOfficialText(JSON.stringify(body));
-    officialAutoWorking = true;
-    localStorage.removeItem(AUTO_PAUSE_KEY);
-    autoStatus("Conexão oficial funcionando. Últimos " + validated.length +
-      " resultados importados diretamente. Nova consulta em pelo menos 10 minutos.");
-    tell("Blitz oficial acessível diretamente no navegador: " + validated.length +
-      " rodadas consultadas. Sem dados do Históricos Blaze misturados.", "ok");
-  } catch (error) {
-    pauseOfficialAuto(24*60,
-      "Não foi possível ler a API a partir do One For All. Pode ser CORS, bloqueio ou falha da rede. " +
-      "Abrir o endereço numa aba separada não garante autorização entre sites. " +
-      "Sem novas tentativas automáticas por 24 horas.");
-  } finally {
-    officialChecking = false;
-    refreshCooldown();
-  }
-}
-function switchSource(mode) {
-  if (!["official", "historicos"].includes(mode)) return;
-  sourceMode = mode;
-  localStorage.setItem(SOURCE_KEY, mode);
-  records = loadSavedRecords(mode === "official" ? OFFICIAL_STORE : STORE);
-  $("sourceSelect").value = mode;
-  render();
-  if (mode === "historicos") {
-    tell("Mostrando Históricos Blaze. A atualização automática continua disponível.", "normal");
-  } else {
-    tell("Mostrando somente os registros oficiais que você importou da Blitz.", "normal");
-  }
-}
-function parseOfficialPayload(input) {
-  let parsed;
-  try { parsed = JSON.parse(String(input).trim()); }
-  catch (_) { throw new Error("O texto copiado não é um resultado válido da API. Copie o conteúdo completo da página."); }
-  const values = Array.isArray(parsed?.records) ? parsed.records :
-    Array.isArray(parsed?.data?.records) ? parsed.data.records : null;
-  if (!values) throw new Error("Não encontrei a lista de rodadas. Abra o link da API e copie toda a página.");
-  const seen = new Map();
-  for (const raw of values.slice(0,100)) {
-    if (!raw || raw.id === undefined || raw.id === null) continue;
-    const c = Number(raw.color), r = Number(raw.roll);
-    if (!Number.isInteger(r) || r < 0 || r > 14 || !Number.isInteger(c) || c < 0 || c > 2) continue;
-    if ((r === 0 ? 0 : r <= 7 ? 1 : 2) !== c) continue;
-    const id = "of:" + String(raw.id);
-    const record = { id, created_at:raw.created_at, roll:r, color:c };
-    if (sanitizeRecord(record)) seen.set(id,record);
-  }
-  if (!seen.size) throw new Error("Não encontrei rodadas válidas com horário, número e cor.");
-  return [...seen.values()];
-}
-function importOfficialText(input) {
-  const official = parseOfficialPayload(input);
-  sourceMode = "official";
-  localStorage.setItem(SOURCE_KEY,sourceMode);
-  records = loadSavedRecords(OFFICIAL_STORE);
-  const count = mergeRecords(official);
-  $("sourceSelect").value = "official";
-  render();
-  const msg = "API oficial: " + official.length + " rodadas válidas nesta cópia, " +
-    count + " novas armazenadas. Apenas a fonte oficial está sendo exibida.";
-  $("importMessage").textContent = msg;
-  tell(msg,"ok");
-  return count;
-}
-async function importClipboard() {
-  try {
-    if (!navigator.clipboard || !navigator.clipboard.readText) {
-      throw new Error("Seu navegador não permite ler a área de transferência. Use o campo Colar abaixo.");
-    }
-    const text = await navigator.clipboard.readText();
-    importOfficialText(text);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Não foi possível ler o texto copiado.";
-    $("importMessage").textContent = message + " Você também pode colar no campo abaixo.";
-    tell(message,"warn");
-  }
-}
-function gapBefore(list, index) {
-  return index > 0 && (list[index].t - list[index - 1].t > MAX_GAP ||
-    list[index].t <= list[index - 1].t);
-}
-function groupHours() {
-  const ordered = records.filter(r => r && Number.isFinite(r.t) && [0,1,2].includes(r.c))
-    .sort((a,b) => a.t - b.t);
-  const hours = new Map();
-  ordered.forEach((r,i) => {
-    if (r.t < CUTOFF) return;
-    const hourStart = Math.floor(r.t / HOUR) * HOUR;
-    if (!hours.has(hourStart)) hours.set(hourStart, []);
-    hours.get(hourStart).push({ ...r, globalIndex: i });
-  });
-
-  const now = Date.now();
-  const outcomes = [];
-  for (const [start, rows] of hours) {
-    const result = { start, state: "incompleto", trigger: null, attempt: null, examined: 0 };
-    // Uma primeira rodada tardia pode esconder um par anterior.
-    if (!rows.length || rows[0].t > start + MAX_GAP) {
-      outcomes.push(result); continue;
-    }
-    let hole = false, second = -1;
-    for (let j = 1; j < rows.length; j++) {
-      if (gapBefore(rows,j)) { hole = true; break; }
-      if (rows[j-1].c === 1 && rows[j].c === 1) { second = j; break; }
-    }
-    if (hole) { outcomes.push(result); continue; }
-
-    if (second < 0) {
-      const last = rows[rows.length-1];
-      const fullHour = now >= start + HOUR &&
-        last.t >= start + HOUR - MAX_GAP;
-      result.state = fullHour ? "sem-sinal" : (last.t >= now - MAX_GAP ? "aguardando" : "incompleto");
-      outcomes.push(result);
-      continue;
-    }
-
-    const trigger = rows[second];
-    result.trigger = trigger.t;
-    result.state = "pendente";
-    let previous = trigger;
-    for (let attempt = 1; attempt <= 11; attempt++) {
-      const next = ordered[trigger.globalIndex + attempt];
-      if (!next) {
-        result.state = previous.t >= now - MAX_GAP ? "pendente" : "incompleto";
-        break;
-      }
-      if (next.t - previous.t > MAX_GAP || next.t <= previous.t) {
-        result.state = "incompleto";
-        break;
-      }
-      result.examined = attempt;
-      if (next.c === 0) {
-        result.state = "acerto";
-        result.attempt = attempt;
-        break;
-      }
-      previous = next;
-      if (attempt === 11) result.state = "falha";
-    }
-    outcomes.push(result);
-  }
-  return outcomes.sort((a,b) => b.start - a.start);
-}
-function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, char => ({
-    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
-  })[char]);
-}
-function fmt(t) { return dateFormatter.format(new Date(t)); }
-function hm(t) { return hourFormatter.format(new Date(t)); }
-function ballsHTML(list) {
-  return list.map(r => '<span class="ball c' + r.c + '" title="' +
-    escapeHtml(fmt(r.t)) + '" aria-label="' + escapeHtml((["Branco", "Amarelo", "Preto"][r.c] || "") + " às " + fmt(r.t)) +
-    '">' + (Number.isInteger(Number(r.roll)) && Number(r.roll) >= 0 && Number(r.roll) <= 14 ? Number(r.roll) : (r.c === 0 ? "0" : "")) + "</span>").join("");
-}
-
-let replayPos = null;
-function renderSample() {
-  const take = Number($("sampleCount").value || 200);
-  const selectedColor = $("sampleColor").value || "all";
-  const sample = records.slice(-Math.min(200,Math.max(50,take))).reverse();
-  const counts = [0,0,0];
-  for (const row of sample) counts[row.c]++;
-  const labels = ["sampleWhite", "sampleYellow", "sampleBlack"];
-  labels.forEach((id,c) => {
-    $(id).textContent = sample.length ? counts[c] + " (" + (100*counts[c]/sample.length).toFixed(1).replace(".",",") + "%)" : "0";
-  });
-  const visible = selectedColor === "all" ? sample : sample.filter(r => r.c === Number(selectedColor));
-  $("sampleSummary").textContent = sample.length ?
-    sample.length + " rodadas salvas nesta amostra; " + visible.length + " exibidas após o filtro. A amostra é histórica, não preditiva." :
-    "Ainda não há dados coletados. O filtro não altera o cálculo dos sinais.";
-  $("recentBalls").innerHTML = ballsHTML(visible);
-  if (!sample.length) $("recentBalls").textContent = "Nenhuma rodada recebida. Você pode usar a análise de números mais abaixo.";
-  else if (!visible.length) $("recentBalls").textContent = "Nenhuma rodada dessa cor na amostra.";
-}
-function renderReplay() {
-  const sample = records.slice(-200);
-  if (replayPos === null || (replayPos === 0 && sample.length > 0) || replayPos > sample.length) replayPos = sample.length;
-  const slider = $("replayPosition");
-  slider.max = String(sample.length || 1);
-  slider.min = "1";
-  slider.disabled = !sample.length;
-  slider.value = String(Math.max(1,replayPos));
-  if (!sample.length) {
-    $("replayState").textContent = "Nenhuma rodada recebida para o replay.";
-    $("replayBalls").textContent = "";
-    return;
-  }
-  const row = sample[Math.max(1,replayPos) - 1];
-  $("replayState").textContent = "Rodada " + replayPos + "/" + sample.length +
-    " · " + fmt(row.t) + " · " + ["Branco","Amarelo","Preto"][row.c];
-  $("replayBalls").innerHTML = ballsHTML(sample.slice(Math.max(0,replayPos-29),replayPos));
-}
-function parsePastedNumbers(text) {
-  const matches = [];
-  for (const rawLine of String(text).split(/\r?\n/)) {
-    const line = rawLine.trim().replace(/^Image:\s*/i,"");
-    if (!line) continue;
-    if (/^branco$/i.test(line)) { matches.push(0); continue; }
-    if (/^(?:0|[1-9]|1[0-4])$/.test(line)) {
-      matches.push(Number(line));
-      continue;
-    }
-    if (/^(?:(?:0|[1-9]|1[0-4])(?:[\s,;|]+|$))+$/.test(line)) {
-      matches.push(...line.split(/[\s,;|]+/).filter(Boolean).map(Number));
-    }
-  }
-  return matches.slice(0,500);
-}
-function analyzePasted() {
-  let nums = parsePastedNumbers($("pasteRolls").value);
-  if ($("pasteOrder").value !== "old") nums = nums.reverse();
-  if (!nums.length) {
-    $("pasteResult").textContent = "Cole números de 0 a 14, separados por espaço, vírgula ou linha.";
-    $("pasteBalls").innerHTML = "";
-    return;
-  }
-  const colors = nums.map(n => n === 0 ? 0 : n <= 7 ? 1 : 2);
-  const pseudo = nums.slice(-45).map((roll,i) => ({ c: colors[colors.length-Math.min(nums.length,45)+i], roll, t: Date.now() }));
-  $("pasteBalls").innerHTML = pseudo.map(r => '<span class="ball c' + r.c + '">' + r.roll + '</span>').join("");
-  const index = colors.findIndex((c,i) => i > 0 && colors[i-1] === 1 && c === 1);
-  if (index < 0) {
-    $("pasteResult").textContent = nums.length + " números analisados. Não apareceu um par consecutivo da cor 1–7 neste recorte.";
-    return;
-  }
-  const after = colors.slice(index+1,index+12);
-  const hit = after.indexOf(0);
-  const outcome = hit >= 0 ? "Branco encontrado na tentativa " + (hit+1) + "/11." :
-    after.length < 11 ? "Sequência incompleta: " + after.length + "/11 rodadas após o par." :
-    "11 rodadas sem branco após o primeiro par.";
-  $("pasteResult").textContent = nums.length + " números analisados. " + outcome +
-    " É uma análise do recorte colado, sem validação da primeira ocorrência por hora.";
-}
-function render() {
-  $("sourceLabel").textContent = sourceMode === "official" ? "Fonte: Blitz oficial" : "Fonte: Históricos Blaze";
-  $("sourceSelect").value = sourceMode;
-  const outcomes = groupHours();
-  const certified = outcomes.filter(x => x.state === "acerto" || x.state === "falha");
-  const hits = certified.filter(x => x.state === "acerto").length;
-  const misses = certified.length - hits;
-  $("newTests").textContent = String(certified.length);
-  $("newHits").textContent = String(hits);
-  $("newMisses").textContent = String(misses);
-  $("combined").textContent = (100 * (3 + hits) / (5 + certified.length)).toFixed(1).replace(".", ",") + "%";
-  $("newRate").textContent = certified.length ?
-    (100 * hits / certified.length).toFixed(1).replace(".", ",") + "%" : "—";
-  $("rowsCount").textContent = records.length.toLocaleString("pt-BR") + " rodadas armazenadas";
-  const last = records[records.length-1];
-  const staleMs = last ? Date.now() - last.t : Infinity;
-  const stale = staleMs > 15 * 60000;
-  const sourceName = sourceMode === "official" ? "Blitz oficial" : "Históricos Blaze";
-  $("lastRound").textContent = last ?
-    (stale ? "⚠ DADOS ANTIGOS — " : "Última rodada — ") + sourceName + ": " + fmt(last.t) :
-    "Nenhuma rodada recebida — " + sourceName;
-  $("freshnessLabel").textContent = !last ? "Sem resultados disponíveis" :
-    (stale ? "⚠ Atenção: a última rodada disponível é antiga (" + fmt(last.t) +
-      "). Estes NÃO são resultados ao vivo." :
-      "Última rodada: " + fmt(last.t) + " • Fonte: " + sourceName);
-  $("freshnessLabel").className = "freshness-label " + (stale ? "stale" : "fresh");
-  renderSample();
-  renderReplay();
-
-  const nowStart = Math.floor(Date.now() / HOUR) * HOUR;
-  const current = outcomes.find(x => x.start === nowStart);
-  const currentLabel = $("currentState");
-  const currentDetail = $("currentDetail");
-  if (stale) {
-    currentLabel.textContent = "Histórico desatualizado";
-    currentDetail.textContent = last ? "Última rodada de " + fmt(last.t) + ". Não é possível monitorar a hora atual." :
-      "Ainda não recebemos rodadas desta fonte.";
-  } else if (!current) {
-    currentLabel.textContent = "Aguardando dados desta hora";
-    currentDetail.textContent = "Clique em Atualizar para tentar buscar as rodadas reais.";
-  } else if (current.state === "acerto") {
-    currentLabel.textContent = "Branco observado";
-    currentDetail.textContent = "Apareceu na tentativa " + current.attempt + " de 11 após o par amarelo.";
-  } else if (current.state === "falha") {
-    currentLabel.textContent = "11 rodadas sem branco";
-    currentDetail.textContent = "Falha registrada para esta hora.";
-  } else if (current.trigger !== null) {
-    currentLabel.textContent = current.state === "pendente" ?
-      "Par amarelo encontrado" : "Dados incompletos";
-    currentDetail.textContent = current.state === "pendente" ?
-      "Observadas " + current.examined + " das 11 rodadas após " + hm(current.trigger) + "." :
-      "Há uma lacuna nos registros; não é possível validar o sinal.";
-  } else {
-    currentLabel.textContent = current.state === "aguardando" ?
-      "Aguardando dois amarelos" : "Dados incompletos nesta hora";
-    currentDetail.textContent = current.state === "aguardando" ?
-      "Nenhum par confirmado na sequência coletada desta hora." :
-      "Precisamos da sequência desde o começo da hora para validar o primeiro par.";
-  }
-
-  const labels = {
-    "acerto": "Branco", "falha": "Falha", "pendente": "Em observação",
-    "sem-sinal": "Sem par amarelo", "aguardando": "Aguardando", "incompleto": "Dados incompletos"
-  };
-  $("historyBody").innerHTML = outcomes.slice(0,36).map(x => {
-    const text = x.state === "acerto" ? "Tentativa " + x.attempt + "/11" :
-      x.state === "falha" ? "11/11" :
-      x.state === "pendente" ? x.examined + "/11 rodadas" : "—";
-    return '<tr><td>' + escapeHtml(fmt(x.start)) + '</td><td>' +
-      (x.trigger !== null ? escapeHtml(hm(x.trigger)) : "—") +
-      '</td><td><span class="state s-' + x.state + '">' + labels[x.state] +
-      '</span></td><td>' + text + '</td></tr>';
-  }).join("") || '<tr><td colspan="4" class="empty">Ainda não há horas com registros.</td></tr>';
-  renderTraining();
-  refreshCooldown();
-}
-function refreshCooldown() {
-  if (sourceMode === "official") {
-    $("updateBtn").disabled = officialChecking || Date.now() < officialPauseUntil();
-    $("updateBtn").textContent = officialAutoWorking ?
-      "Atualizar pela API oficial" : "Testar acesso oficial automático";
-  } else {
-    const remaining = nextAllowed - Date.now();
-    $("updateBtn").disabled = updating || remaining > 0;
-    if (!updating) {
-      $("updateBtn").textContent = remaining > 0 ?
-        "Atualizado · recarregar às " + hm(nextAllowed) : "Atualizar resultados";
-    }
-  }
-  $("testOfficialAuto").disabled = officialChecking || Date.now() < officialPauseUntil();
-}
-const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
-async function updateData() {
-  if (sourceMode === "official") {
-    await tryOfficialAuto();
-    return;
-  }
-  if (updating || Date.now() < nextAllowed) return;
-  updating = true;
-  nextAllowed = Date.now() + 2 * 60000; // arquivo público do próprio site, não consulta a fonte externa
-  localStorage.setItem("ofa_feed_next_allowed_v3", String(nextAllowed));
-  $("updateBtn").textContent = "Carregando histórico...";
-  $("updateBtn").disabled = true;
-  try {
-    const feeds = [
-      "https://raw.githubusercontent.com/Stormthunder114/calculador-branco-one-for-all/main/data/blitz-historico-publico.json",
-      "./data/blitz-historico-publico.json"
-    ];
-    let feed = null;
-    for (const base of feeds) {
-      try {
-        const response = await fetch(base + "?rev=" + Date.now(), {
-          method: "GET", cache: "no-store", credentials: "omit"
-        });
-        if (!response.ok) continue;
-        const candidate = await response.json();
-        if (candidate?.source === "Históricos Blaze" && Array.isArray(candidate.records)) {
-          feed = candidate;
-          break;
-        }
-      } catch (_) { /* tenta segunda origem, sem repetir contato com o Históricos Blaze */ }
-    }
-    if (!feed) throw new Error("Ainda não foi possível carregar o histórico publicado pelo GitHub.");
-    if (!feed || feed.source !== "Históricos Blaze" || !Array.isArray(feed.records)) {
-      throw new Error("O arquivo de histórico está em formato inesperado.");
-    }
-    const fetched = Date.parse(feed.fetched_at || "");
-    if (!Number.isFinite(fetched) || fetched > Date.now()+120000) {
-      throw new Error("Não foi possível conferir o horário de atualização da fonte.");
-    }
-    if (sourceMode !== "historicos") return; // Nunca misturar a fonte externa aos registros oficiais importados.
-    const count = mergeRecords(feed.records);
+    const body=await response.json();
+    const parsed=normalizeOfficial(body,Date.now());
+    if (!everConnected) archive=loadOfficialArchive(Date.now());
+    mergeOfficial(parsed,Date.now());
+    everConnected=true;
+    lastFetchedAt=Date.now();
+    const age=Date.now()-latest[0].t;
+    setStatus(age<=FRESH_MS?"live":"delayed",
+      age<=FRESH_MS?
+        "Conexão direta com a API oficial confirmada. "+latest.length+
+        " rodadas recebidas; atualização automática ativa.":
+        "A API respondeu, mas a última rodada tem mais de 5 minutos. Não são resultados em tempo real.");
     render();
-    const age = Date.now() - fetched;
-    const sourceTime = fmt(fetched);
-    if (age > 2 * HOUR) {
-      tell("O histórico externo está atrasado (última coleta " + sourceTime +
-        "). " + count + " rodadas novas recuperadas. Não considere este painel ao vivo.", "warn");
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      blockUntil=Date.now()+10*60000;
+      setStatus("unavailable","A API não retornou JSON válido. Nenhum dado foi substituído.");
+    } else if (error?.message?.includes("resultados estão antigos") ||
+               error?.message?.includes("incompleta") ||
+               error?.message?.includes("lista")) {
+      blockUntil=Date.now()+10*60000;
+      setStatus("delayed",error.message);
     } else {
-      tell("Histórico atualizado pelo GitHub: " + count + " rodadas novas. Fonte: Históricos Blaze. Última coleta: " + sourceTime + ". A fonte pode ter lacunas.", "ok");
+      // Sem resposta HTTP acessível não é possível distinguir CORS de rede.
+      stopAutomatic=true;
+      setStatus("unavailable",
+        "O navegador não conseguiu ler a resposta da Blitz. Pode ser CORS ou falha de rede. "+
+        "A consulta automática foi suspensa para não repetir requisições bloqueadas.");
     }
-  } catch (err) {
-    tell((err instanceof Error ? err.message : "Falha ao buscar resultados") +
-      " Os dados já armazenados continuam no navegador.", "warn");
   } finally {
-    updating = false;
-    refreshCooldown();
+    if (timeout!==null) clearTimeout(timeout);
+    inFlight=false;
+    if (everConnected) render();
+    renderStatus();
+    schedulePoll();
   }
 }
-function trainingState() {
-  let trigger = -1;
-  for (let i=1; i<training.length; i++) {
-    if (training[i-1] === 1 && training[i] === 1) { trigger=i; break; }
-  }
-  if (trigger < 0) return { state:"waiting", count:0 };
-  const following = training.slice(trigger + 1, trigger + 12);
-  const white = following.indexOf(0);
-  if (white >= 0) return {state:"hit",count:white+1};
-  if (following.length === 11) return {state:"miss",count:11};
-  return {state:"watching",count:following.length};
+function schedulePoll() {
+  if (pollingHandle!==null) clearTimeout(pollingHandle);
+  pollingHandle=null;
+  if (stopAutomatic) return;
+  const wait=Math.max(POLL_MS,blockUntil-Date.now());
+  nextRequestAt=Date.now()+wait;
+  pollingHandle=setTimeout(()=>{
+    pollingHandle=null;
+    if (typeof document!=="undefined" && document.hidden) {
+      schedulePoll();
+    } else {
+      updateLive();
+    }
+  },wait);
 }
-function renderTraining() {
-  const state = trainingState();
-  const messages = {
-    waiting:"Aguardando dois amarelos consecutivos.",
-    watching:"Par encontrado. Rodadas seguintes: " + state.count + "/11.",
-    hit:"Branco na tentativa " + state.count + "/11. Encerrou!",
-    miss:"11 rodadas sem branco. Encerrou!"
-  };
-  $("trainingState").textContent = messages[state.state];
-  $("trainingBalls").innerHTML = training.map(c =>
-    '<span class="ball c' + c + '">' + (c === 0 ? "0" : "") + "</span>").join("");
-  for (const id of ["whiteBtn","yellowBtn","blackBtn"]) $(id).disabled =
-    state.state === "hit" || state.state === "miss";
+function onRefreshClick() {
+  if (!inFlight && !stopAutomatic && Date.now()>=blockUntil) updateLive();
 }
-function addTraining(color) {
-  if (["hit","miss"].includes(trainingState().state)) return;
-  if (training.length >= 100) { tell("Reinicie o treino para continuar.", "warn"); return; }
-  training.push(color);
-  localStorage.setItem(MANUAL_STORE, JSON.stringify(training));
-  renderTraining();
-}
-function exportCopy() {
-  const snapshot = {
-    version:2, exported_at:new Date().toISOString(), observations:records,
-    legacy_validation:{signals:5,hits:3,misses:2,white_attempts:[7,8,10]},
-    note:"Estudo estatístico, não uma ferramenta de previsão."
-  };
-  const blob = new Blob([JSON.stringify(snapshot,null,2)],{type:"application/json"});
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = "one-for-all-historico-" + new Date().toISOString().slice(0,10) + ".json";
-  document.body.appendChild(link); link.click(); link.remove();
-  setTimeout(() => URL.revokeObjectURL(link.href),1000);
-}
-$("sampleCount").addEventListener("change", renderSample);
-$("sampleColor").addEventListener("change", renderSample);
-$("replayPosition").addEventListener("input", value => {
-  replayPos = Number($("replayPosition").value);
-  renderReplay();
-});
-$("pasteAnalyzeBtn").addEventListener("click", analyzePasted);
-$("testOfficialAuto").addEventListener("click", tryOfficialAuto);
-$("clipboardImport").addEventListener("click", importClipboard);
-$("manualOfficialImport").addEventListener("click", () => {
-  try { importOfficialText($("officialPaste").value); $("officialPaste").value = ""; }
-  catch (error) {
-    $("importMessage").textContent = error instanceof Error ? error.message : "Conteúdo inválido.";
-    tell($("importMessage").textContent,"warn");
+$("refreshBtn").addEventListener("click",onRefreshClick);
+$("apiLink").href=buildApiUrl();
+$("apiInfoLink").href=buildApiUrl();
+document.addEventListener("visibilitychange",()=>{
+  if (!document.hidden && !inFlight && !stopAutomatic && Date.now()>=nextRequestAt) {
+    updateLive();
   }
 });
-$("sourceSelect").addEventListener("change", () => switchSource($("sourceSelect").value));
-$("openOfficialApi").href = officialApiLink();
-$("updateBtn").addEventListener("click", updateData);
-$("whiteBtn").addEventListener("click", () => addTraining(0));
-$("yellowBtn").addEventListener("click", () => addTraining(1));
-$("blackBtn").addEventListener("click", () => addTraining(2));
-$("resetTraining").addEventListener("click", () => {
-  training = []; localStorage.removeItem(MANUAL_STORE); renderTraining();
-});
-$("exportBtn").addEventListener("click", exportCopy);
-$("clearBtn").addEventListener("click", () => {
-  if (!confirm("Apagar as rodadas coletadas neste navegador? O histórico anterior de 3/5 será preservado.")) return;
-  records = []; localStorage.removeItem(sourceMode === "official" ? OFFICIAL_STORE : STORE); render();
-  tell("Histórico novo apagado somente deste navegador.", "normal");
-});
+setInterval(()=>{
+  if (everConnected && latest.length) {
+    const age=Date.now()-latest[0].t;
+    if (age>FRESH_MS && state==="live") {
+      setStatus("delayed","A última rodada recebida já está desatualizada. Aguardando nova resposta oficial.");
+    }
+  }
+  renderLastResult();
+  renderSchedule();
+},30000);
 render();
-updateData(); // Lê o arquivo público do histórico alternativo, se ele estiver selecionado.
-if (typeof window !== "undefined" && typeof fetch === "function") {
-  if (Date.now() >= officialPauseUntil()) tryOfficialAuto(); // Uma tentativa, sem insistência.
-  else autoStatus("Tentativa oficial pausada até " + fmt(officialPauseUntil()) +
-    ". O histórico alternativo continua disponível.");
-}
-setInterval(refreshCooldown, 30000);
-setInterval(() => {
-  if (sourceMode === "official" && officialAutoWorking) {
-    tryOfficialAuto();
-  } else if (sourceMode === "historicos") {
-    updateData();
-  }
-}, 10 * 60000);
+if (typeof window !== "undefined") updateLive();
