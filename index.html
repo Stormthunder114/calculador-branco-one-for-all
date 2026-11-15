@@ -1,183 +1,86 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0d1524">
-  <meta name="description" content="One For All — laboratório de observação estatística do Double. Sem apostas nem previsão de resultados.">
-  <title>One For All | Observatório Double</title>
-  <link rel="stylesheet" href="style.css">
-  <script src="app.js" defer></script>
-  <script src="atualizacao-automatica.js"></script>
-<script>
-  OneForAllAutoUpdate.iniciar({
-    aoReceberNovosDados: function (listaCompleta, novasRodadas) {
-      // chame aqui as funções que vocês já têm pra desenhar a grade e recalcular estatísticas
-    },
-    aoMudarStatus: function (status, detalhe) {
-      // ex.: trocar o texto/cor do indicador de conexão
-    }
-  });
-</script>
+  <meta name="theme-color" content="#091521">
+  <meta name="description" content="One For All: painel de monitoramento estatístico dos últimos 100 resultados oficiais do Double da Blitz.">
+  <title>One For All | Double ao vivo</title>
+  <link rel="stylesheet" href="./style.css">
+  <script src="./app.js" defer></script>
 </head>
 <body>
-  <div class="wrap">
+  <div class="shell">
     <header class="topbar">
-      <div class="brand"><span class="logo">1</span><div><strong>ONE FOR ALL</strong><small>Observatório Double</small></div></div>
-      <a class="old-link" href="calculadora_legada.html">Abrir calculadora antiga</a>
+      <div class="brand"><span class="brand-icon">1</span><div><strong>ONE FOR ALL</strong><small>OBSERVATÓRIO DOUBLE</small></div></div>
+      <a class="source-link" id="apiLink" href="https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1" target="_blank" rel="noopener noreferrer">Fonte: API oficial da Blitz <span aria-hidden="true">↗</span></a>
     </header>
 
     <main>
       <section class="hero">
-        <div class="hero-copy">
-          <span class="eyebrow"><span class="pulse"></span> TESTE ESTATÍSTICO · SEM APOSTAS</span>
-          <h1>Veja o que realmente aconteceu com o <span>branco.</span></h1>
-          <p>Sem contas difíceis. Atualize os resultados e acompanhe uma regra fixa: primeiro par de dois amarelos da hora, seguido de até 11 rodadas.</p>
+        <div class="hero-heading">
+          <div class="eyebrow"><span class="eyebrow-dot"></span> SOMENTE RESULTADOS OFICIAIS</div>
+          <h1>Double <span>ao vivo.</span></h1>
+          <p>As últimas 100 rodadas, números e cores, diretamente da API oficial da Blitz. Nenhuma fonte alternativa e nenhum lançamento manual.</p>
+          <div class="connection">
+            <span class="status-dot" id="statusDot" aria-hidden="true"></span>
+            <span id="statusBadge" aria-live="polite">Conectando...</span>
+          </div>
         </div>
-        <div class="hero-control">
-          <div class="micro">ACOMPANHAMENTO DESTA HORA</div>
-          <div class="current-state" id="currentState" aria-live="polite">Aguardando dados desta hora</div>
-          <p id="currentDetail">Clique em Atualizar para tentar buscar as rodadas reais.</p>
-          <button class="primary large" id="updateBtn" type="button">Atualizar resultados</button>
-          <p class="helper" id="lastRound">Nenhuma rodada recebida</p>
+        <div class="status-panel">
+          <div class="small-label">ÚLTIMA RODADA OFICIAL</div>
+          <div class="last-result" id="lastResult">Aguardando conexão</div>
+          <p id="lastResultDetails">O primeiro carregamento acontecerá automaticamente.</p>
+          <button id="refreshBtn" class="action" type="button">Atualizar agora</button>
+          <p class="hint" id="nextUpdate">A atualização é automática enquanto esta página estiver aberta.</p>
         </div>
       </section>
 
-      <div class="notice normal" id="notice" role="status" aria-live="polite">Fonte ativa: Históricos Blaze, atualizada periodicamente pelo GitHub. A API oficial da Blitz retornou HTTP 451 durante o teste de coleta automática em 15/11/2026. Não estamos contornando esse bloqueio.</div>
+      <div id="notice" class="notice neutral" role="status" aria-live="polite">
+        Consultando a primeira página da API oficial, com até 100 resultados.
+      </div>
 
-      <section class="panel official-import">
-        <div class="section-heading"><div>
-          <h2>Resultados da API oficial da Blitz</h2>
-          <p>O site tentará uma leitura direta da API com datas atuais. Se a Blitz não permitir acesso entre sites, você ainda poderá importar os 100 resultados sem editar JSON.</p>
-        </div><span class="state" id="sourceLabel">Fonte: Históricos Blaze</span></div>
-        <div class="import-steps">
-          <div><span class="step-number">1</span><strong>Abra os resultados da Blitz</strong>
-            <p>Na aba que abrir, pressione <kbd>Ctrl + A</kbd> e depois <kbd>Ctrl + C</kbd> para copiar.</p>
-            <a id="openOfficialApi" class="secondary import-link" href="https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1" target="_blank" rel="noopener noreferrer">Abrir 100 resultados oficiais</a>
-          </div>
-          <div><span class="step-number">2</span><strong>Volte aqui e clique abaixo</strong>
-            <p>O navegador solicitará sua autorização para ler o texto copiado.</p>
-            <button type="button" class="primary" id="clipboardImport">Atualizar usando o que copiei</button>
-          </div>
-        </div>
-        <div class="auto-test">
-          <div><strong>Conexão automática com a Blitz</strong>
-            <p id="officialAutoStatus" role="status" aria-live="polite">Verificando se a API permite que nosso site leia os resultados.</p>
-          </div>
-          <button type="button" id="testOfficialAuto" class="secondary">Testar acesso direto</button>
-        </div>
-        <p class="import-message" id="importMessage" role="status" aria-live="polite">Se a conexão automática não funcionar, use a importação acima. O site não pode contornar restrições da origem.</p>
-        <details>
-          <summary>Se o botão não conseguir ler o texto copiado</summary>
-          <div class="details-body">
-            <p>Clique no campo abaixo, pressione <kbd>Ctrl + V</kbd> e depois em Importar. O site lê o texto automaticamente.</p>
-            <textarea id="officialPaste" rows="4" spellcheck="false" placeholder="Cole aqui o conteúdo completo da página da API"></textarea>
-            <button type="button" class="secondary" id="manualOfficialImport">Importar resultados colados</button>
-          </div>
-        </details>
-        <div class="source-control">
-          <label for="sourceSelect">Resultados exibidos</label>
-          <select id="sourceSelect">
-            <option value="historicos">Históricos Blaze (atualização horária)</option>
-            <option value="official">Blitz oficial (minhas importações)</option>
-          </select>
-        </div>
-      </section>
-
-      <section class="stats" aria-label="Resumo da validação">
-        <div class="tile"><span>Teste anterior</span><strong>3 de 5</strong><small>3 acertos · 2 falhas</small></div>
-        <div class="tile"><span>Novos testes concluídos</span><strong id="newTests">0</strong><small>Somente dados válidos</small></div>
-        <div class="tile"><span>Acertos novos</span><strong id="newHits">0</strong><small id="newRate">—</small></div>
-        <div class="tile"><span>Falhas novas</span><strong id="newMisses">0</strong><small>Sem branco em 11</small></div>
-        <div class="tile emphasized"><span>Taxa acumulada</span><strong id="combined">60,0%</strong><small>Referência antiga: 55,4% aleatório</small></div>
+      <section class="stats" aria-label="Estatísticas das rodadas oficiais">
+        <div class="stat"><span>Rodadas recebidas</span><strong id="sampleTotal">—</strong><small>Máximo de 100 por consulta</small></div>
+        <div class="stat"><span>Brancos</span><strong id="countWhite">—</strong><small id="pctWhite">Na amostra</small></div>
+        <div class="stat"><span>Amarelos (1–7)</span><strong id="countYellow">—</strong><small id="pctYellow">Na amostra</small></div>
+        <div class="stat"><span>Pretos (8–14)</span><strong id="countBlack">—</strong><small id="pctBlack">Na amostra</small></div>
       </section>
 
       <section class="panel">
-        <div class="section-heading"><div><h2>Últimas rodadas recebidas</h2><p id="rowsCount">0 rodadas armazenadas</p></div><span class="legend"><i class="dot white"></i> Branco <i class="dot yellow"></i> Amarelo <i class="dot black"></i> Preto</span></div>
-        <div class="sample-toolbar">
-          <label>Mostrar <select id="sampleCount" aria-label="Número de rodadas"><option value="50">50 rodadas</option><option value="100" selected>100 rodadas</option><option value="200">200 rodadas</option></select></label>
-          <label>Destacar <select id="sampleColor" aria-label="Filtro de cor"><option value="all">Todas as cores</option><option value="0">Branco</option><option value="1">Amarelo</option><option value="2">Preto</option></select></label>
+        <div class="panel-title">
+          <div><h2>Últimos 100 resultados</h2><p id="sampleDescription">Aguardando os dados oficiais.</p></div>
+          <div class="legend"><span><i class="ball-key key-white"></i>Branco</span><span><i class="ball-key key-yellow"></i>Amarelo</span><span><i class="ball-key key-black"></i>Preto</span></div>
         </div>
-        <div class="color-distribution" aria-label="Frequências na amostra">
-          <div><span>⚪ Branco</span><strong id="sampleWhite">0</strong></div>
-          <div><span>🟡 Amarelo</span><strong id="sampleYellow">0</strong></div>
-          <div><span>⚫ Preto</span><strong id="sampleBlack">0</strong></div>
-        </div>
-        <p class="sample-summary" id="sampleSummary">Sem resultados armazenados. A amostra não representa previsão.</p>
-        <p class="freshness-label" id="freshnessLabel" role="status" aria-live="polite">Aguardando a primeira coleta.</p>
-        <div id="recentBalls" class="balls" aria-label="Cores das rodadas recentes">Os resultados aparecerão aqui após a primeira conexão.</div>
+        <div class="rounds" id="rounds" aria-label="Resultados da API oficial">Os resultados aparecerão quando a Blitz permitir a consulta.</div>
       </section>
 
       <section class="panel">
-        <div class="section-heading"><div><h2>Histórico de acompanhamento</h2><p>Cada linha corresponde a uma hora de Brasília. Dados incompletos não contam como acerto ou falha.</p></div></div>
-        <div class="table-scroll">
+        <div class="panel-title">
+          <div><h2>Experimento de 11 rodadas</h2><p>Primeiro par amarelo de cada hora, seguido por até 11 resultados. Apenas sequências completas são pontuadas.</p></div>
+        </div>
+        <div class="experiment-overview">
+          <div><span>Sinais concluídos</span><strong id="signalTotal">0</strong></div>
+          <div><span>Com branco</span><strong id="signalHits">0</strong></div>
+          <div><span>Sem branco</span><strong id="signalMisses">0</strong></div>
+          <div><span>Taxa observada</span><strong id="signalRate">—</strong></div>
+        </div>
+        <div class="table-container">
           <table>
-            <thead><tr><th>Hora</th><th>Par amarelo</th><th>Situação</th><th>Rodadas</th></tr></thead>
-            <tbody id="historyBody"><tr><td colspan="4" class="empty">Ainda não há horas com registros.</td></tr></tbody>
+            <thead><tr><th>Hora (Brasília)</th><th>Par amarelo</th><th>Situação</th><th>Contagem</th></tr></thead>
+            <tbody id="historyRows"><tr><td class="empty" colspan="4">Aguardando rodadas suficientes.</td></tr></tbody>
           </table>
         </div>
       </section>
 
-      <section class="panel">
-        <div class="section-heading">
-          <div><h2>Replay do histórico coletado</h2><p>Volte no tempo e examine as últimas 200 rodadas salvas, sem alterar as estatísticas.</p></div>
-        </div>
-        <div class="replay-panel">
-          <input id="replayPosition" type="range" min="0" max="0" value="0" aria-label="Posição do replay" disabled>
-          <div class="replay-caption" id="replayState">Nenhum registro disponível para rever.</div>
-          <div class="balls small-balls" id="replayBalls"></div>
-        </div>
+      <section class="help">
+        <h2>Como funciona a atualização?</h2>
+        <p>O One For All consulta somente a <a id="apiInfoLink" href="https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1" target="_blank" rel="noopener noreferrer">API oficial da Blitz</a>, solicitando a página 1 com um intervalo de datas atualizado. Enquanto houver acesso autorizado e a aba estiver ativa, tenta uma atualização aproximadamente a cada 2 minutos.</p>
+        <p>Se a Blitz bloquear a leitura entre sites (CORS) ou retornar HTTP 403, 429 ou 451, o painel indicará a falha. Não utiliza proxies, dados fictícios ou outra fonte para simular resultados ao vivo.</p>
       </section>
-      <section class="panel paste-panel">
-        <div class="section-heading">
-          <div><h2>Analisar números sem JSON</h2><p>Copie números de 0 a 14 de um histórico e cole aqui. Não precisa de programação.</p></div>
-          <a class="external-reference" href="https://historicosblaze.com/results/blitz/double" target="_blank" rel="noopener noreferrer">Ver histórico externo</a>
-        </div>
-        <label for="pasteRolls" class="form-label">Números de 0 a 14, separados por espaço, vírgula ou linha. Números 1–7 correspondem à cor 1 (amarelo na nossa regra; vermelho no site consultado).</label>
-        <textarea id="pasteRolls" rows="3" spellcheck="false" placeholder="12 2 6 0 8 5 1 4 0 ..."></textarea>
-        <div class="paste-actions">
-          <label>Ordem dos resultados
-            <select id="pasteOrder"><option value="recent">Mais recentes primeiro (site de históricos)</option><option value="old">Mais antigos primeiro</option></select>
-          </label>
-          <button type="button" class="secondary" id="pasteAnalyzeBtn">Analisar números</button>
-        </div>
-        <div id="pasteResult" class="training-state" aria-live="polite">A análise colada é independente dos testes por hora e não entra nos acertos reais.</div>
-        <div id="pasteBalls" class="balls small-balls"></div>
-      </section>
-      <section class="two-columns">
-        <details class="panel collapsible">
-          <summary><span><strong>Testar as cores manualmente</strong><small>Para entender a contagem sem depender da conexão</small></span><span class="chevron">+</span></summary>
-          <div class="details-body">
-            <p>Toque nas cores na ordem das rodadas. Primeiro procuramos 🟡🟡. Depois contamos até 11. <strong>Este treino não entra nas estatísticas reais.</strong></p>
-            <div class="manual-controls">
-              <button id="whiteBtn" class="manual white-btn" type="button">⚪ Branco</button>
-              <button id="yellowBtn" class="manual yellow-btn" type="button">🟡 Amarelo</button>
-              <button id="blackBtn" class="manual black-btn" type="button">⚫ Preto</button>
-            </div>
-            <div id="trainingState" class="training-state" aria-live="polite">Aguardando dois amarelos consecutivos.</div>
-            <div id="trainingBalls" class="balls small-balls"></div>
-            <button id="resetTraining" class="quiet" type="button">Recomeçar treino</button>
-          </div>
-        </details>
-        <details class="panel collapsible">
-          <summary><span><strong>Ajuda e histórico</strong><small>Entenda a regra e salve uma cópia</small></span><span class="chevron">+</span></summary>
-          <div class="details-body">
-            <p><strong>Como funciona?</strong> Em cada hora, identificamos o primeiro par de amarelos seguidos. As próximas 11 rodadas são observadas. O primeiro branco encerra a contagem; se nenhuma for branca, é falha. Se faltarem dados, não pontuamos.</p>
-            <p><strong>Por que não é a API oficial?</strong> Embora o teste inicial da Blitz tenha retornado 100 registros (HTTP 200), uma consulta automática posterior retornou HTTP 451 em 15/11/2026. A integração automática direta foi suspensa; não fazemos tentativas para contornar essa restrição.</p>
-            <p><strong>Como atualiza?</strong> O GitHub consulta uma amostra pública do Históricos Blaze uma vez por hora, respeitando robots.txt e as restrições do serviço. Nosso site lê a cópia publicada no GitHub e a verifica a cada 10 minutos. O botão apenas recarrega essa cópia.</p>
- <p><strong>Por que pode atrasar?</strong> A fonte pode ter lacunas, ficar indisponível ou mudar de formato. Nesse caso, preservamos os resultados anteriores e sinalizamos o problema. Sem dados completos, a hora não conta como acerto ou falha.</p>
-            <p><strong>De onde vêm os resultados?</strong> Fonte externa: <a href="https://historicosblaze.com/results/blitz/double" target="_blank" rel="noopener noreferrer">Históricos Blaze — Double Blitz</a>. Não somos afiliados a esse serviço. A cor vermelha (números 1–7) é exibida como amarela (cor 1), seguindo o nome usado neste experimento.</p>
- <p><strong>O que acontece com os dados?</strong> O GitHub mantém uma amostra limitada e este navegador guarda seu histórico coletado. O resumo anterior de 3 acertos em 5 testes não contém as rodadas originais.</p>
-            <div class="option-buttons">
-              <button id="exportBtn" class="secondary" type="button">Baixar cópia dos dados</button>
-              <button id="clearBtn" class="quiet danger" type="button">Apagar dados novos</button>
-            </div>
-          </div>
-        </details>
-      </section>
-      <p class="disclaimer">Ferramenta de pesquisa descritiva. Um resultado anterior não permite saber quando virá o próximo branco e não demonstra vantagem estatística.</p>
+      <p class="disclaimer">Observação estatística: as rodadas anteriores não permitem prever o próximo resultado. Sem apostas nem garantia de acerto.</p>
     </main>
-    <footer>ONE FOR ALL · Fonte Históricos Blaze · Atualização aproximada de 1 hora · Brasília (UTC−3) · Regra congelada em 15/11/2026</footer>
+    <footer>ONE FOR ALL · Fonte exclusiva: Blitz Double · Fuso America/Sao_Paulo</footer>
   </div>
 </body>
 </html>
