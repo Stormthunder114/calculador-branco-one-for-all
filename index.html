@@ -8,6 +8,17 @@
   <title>One For All | Observatório Double</title>
   <link rel="stylesheet" href="style.css">
   <script src="app.js" defer></script>
+  <script src="atualizacao-automatica.js"></script>
+<script>
+  OneForAllAutoUpdate.iniciar({
+    aoReceberNovosDados: function (listaCompleta, novasRodadas) {
+      // chame aqui as funções que vocês já têm pra desenhar a grade e recalcular estatísticas
+    },
+    aoMudarStatus: function (status, detalhe) {
+      // ex.: trocar o texto/cor do indicador de conexão
+    }
+  });
+</script>
 </head>
 <body>
   <div class="wrap">
