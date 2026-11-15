@@ -61,7 +61,7 @@ test("Gera datas dinâmicas e consulta apenas a página 1",()=>{
   assert.equal(url.pathname,"/api/singleplayer-originals/originals/roulette_games/recent/history/1");
   assert.equal(url.searchParams.get("page"),"1");
   assert.equal(Date.parse(url.searchParams.get("endDate")),now);
-  assert.equal(now-Date.parse(url.searchParams.get("startDate")),48*3600000);
+  assert.equal(now-Date.parse(url.searchParams.get("startDate")),3*3600000);
 });
 test("Valida 100 resultados oficiais e organiza do antigo ao recente",()=>{
   const {ctx,now}=harness();
@@ -80,7 +80,7 @@ test("Rejeita resultados do dia 13 como se fossem ao vivo no dia 15",()=>{
   const {ctx,now}=harness();
   const old=rows(now-2*86400000);
   assert.throws(()=>ctx.normalizeOfficial({records:old},now));
-  const stale=rows(now-3*3600000);
+  const stale=rows(now-30*60000);
   assert.throws(()=>ctx.normalizeOfficial({records:stale},now),/antigos/);
 });
 test("Uma coleta real simulada atualiza somente os 100 oficiais",async()=>{
