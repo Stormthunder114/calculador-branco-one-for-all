@@ -12,6 +12,11 @@ const STORE = "ofa_blitz_records_v2";
 const OFFICIAL_STORE = "ofa_blitz_official_manual_v1";
 const SOURCE_KEY = "ofa_active_source_v1";
 const OFFICIAL_URL = "https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1";
+const AUTO_PAUSE_KEY = "ofa_blitz_auto_pause_until_v1";
+const AUTO_MIN_INTERVAL = 10 * 60000;
+let lastOfficialAutoCheck = 0;
+let officialChecking = false;
+let officialAutoWorking = false;
 const MANUAL_STORE = "ofa_blitz_treino_v2";
 const LIMIT_STORE = 7500;
 const $ = (id) => document.getElementById(id);
@@ -23,7 +28,7 @@ const hourFormatter = new Intl.DateTimeFormat("pt-BR", {
   timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
 });
 let sourceMode = localStorage.getItem(SOURCE_KEY) === "official" ? "official" : "historicos";
-let records = readStorage(sourceMode === "official" ? OFFICIAL_STORE : STORE, []);
+let records = loadSavedRecords(sourceMode === "official" ? OFFICIAL_STORE : STORE);
 let training = readStorage(MANUAL_STORE, []);
 let updating = false;
 let nextAllowed = Number(localStorage.getItem("ofa_feed_next_allowed_v3") || 0);
@@ -33,6 +38,17 @@ function readStorage(key, fallback) {
     const value = JSON.parse(localStorage.getItem(key) || "null");
     return Array.isArray(value) ? value : fallback;
   } catch (_) { return fallback; }
+}
+function loadSavedRecords(key) {
+  const saved = readStorage(key, []);
+  const dedup = new Map();
+  for (const row of saved) {
+    if (!row || !row.id || !Number.isFinite(row.t) ||
+        row.t < CUTOFF || row.t > Date.now() + 120000 ||
+        ![0, 1, 2].includes(row.c)) continue;
+    dedup.set(String(row.id),row);
+  }
+  return [...dedup.values()].sort((a,b)=>a.t-b.t).slice(-LIMIT_STORE);
 }
 function tell(message, kind) {
   const el = $("notice");
@@ -70,11 +86,84 @@ function officialApiLink() {
     "?startDate=" + encodeURIComponent(start.toISOString()) +
     "&endDate=" + encodeURIComponent(now.toISOString()) + "&page=1";
 }
+function autoStatus(msg) {
+  const target = $("officialAutoStatus");
+  if (target) target.textContent = msg;
+}
+function officialPauseUntil() {
+  return Math.max(0,Number(localStorage.getItem(AUTO_PAUSE_KEY) || 0));
+}
+function pauseOfficialAuto(minutes, message) {
+  officialAutoWorking = false;
+  localStorage.setItem(AUTO_PAUSE_KEY,String(Date.now() + minutes * 60000));
+  autoStatus(message);
+  refreshCooldown();
+}
+async function tryOfficialAuto() {
+  if (officialChecking) return;
+  const until = officialPauseUntil();
+  if (Date.now() < until) {
+    autoStatus("Leitura oficial indisponível. Nova tentativa após " + fmt(until) +
+      ". Enquanto isso, use o histórico alternativo ou a importação manual.");
+    return;
+  }
+  if (Date.now() - lastOfficialAutoCheck < AUTO_MIN_INTERVAL) {
+    autoStatus("Nova consulta oficial permitida após " + fmt(lastOfficialAutoCheck + AUTO_MIN_INTERVAL) + ".");
+    return;
+  }
+  if (typeof fetch !== "function") return;
+  officialChecking = true;
+  lastOfficialAutoCheck = Date.now();
+  autoStatus("Verificando a leitura autorizada da API oficial...");
+  refreshCooldown();
+  try {
+    const response = await fetch(officialApiLink(), {
+      method: "GET", mode: "cors", credentials: "omit", cache: "no-store"
+    });
+    if (response.status === 429) {
+      const header = response.headers.get("Retry-After");
+      const secs = Number(header);
+      const pauseMinutes = Number.isFinite(secs) && secs > 0 ?
+        Math.max(60, Math.min(Math.ceil(secs/60), 1440)) : 60;
+      pauseOfficialAuto(pauseMinutes, "Limite da Blitz (HTTP 429). A próxima tentativa foi adiada.");
+      return;
+    }
+    if ([401,403,451].includes(response.status)) {
+      pauseOfficialAuto(24*60,
+        "A Blitz não autorizou esta consulta (HTTP " + response.status +
+        "). Não serão feitas novas consultas durante 24 horas.");
+      return;
+    }
+    if (!response.ok) {
+      pauseOfficialAuto(60,"A API respondeu HTTP " + response.status +
+        ". O site vai preservar o histórico e aguardar antes de tentar novamente.");
+      return;
+    }
+    const body = await response.json();
+    const validated = parseOfficialPayload(JSON.stringify(body));
+    if (!validated.length) throw new Error("Sem rodadas válidas na resposta da Blitz.");
+    importOfficialText(JSON.stringify(body));
+    officialAutoWorking = true;
+    localStorage.removeItem(AUTO_PAUSE_KEY);
+    autoStatus("Conexão oficial funcionando. Últimos " + validated.length +
+      " resultados importados diretamente. Nova consulta em pelo menos 10 minutos.");
+    tell("Blitz oficial acessível diretamente no navegador: " + validated.length +
+      " rodadas consultadas. Sem dados do Históricos Blaze misturados.", "ok");
+  } catch (error) {
+    pauseOfficialAuto(24*60,
+      "Não foi possível ler a API a partir do One For All. Pode ser CORS, bloqueio ou falha da rede. " +
+      "Abrir o endereço numa aba separada não garante autorização entre sites. " +
+      "Sem novas tentativas automáticas por 24 horas.");
+  } finally {
+    officialChecking = false;
+    refreshCooldown();
+  }
+}
 function switchSource(mode) {
   if (!["official", "historicos"].includes(mode)) return;
   sourceMode = mode;
   localStorage.setItem(SOURCE_KEY, mode);
-  records = readStorage(mode === "official" ? OFFICIAL_STORE : STORE, []);
+  records = loadSavedRecords(mode === "official" ? OFFICIAL_STORE : STORE);
   $("sourceSelect").value = mode;
   render();
   if (mode === "historicos") {
@@ -107,7 +196,7 @@ function importOfficialText(input) {
   const official = parseOfficialPayload(input);
   sourceMode = "official";
   localStorage.setItem(SOURCE_KEY,sourceMode);
-  records = readStorage(OFFICIAL_STORE,[]);
+  records = loadSavedRecords(OFFICIAL_STORE);
   const count = mergeRecords(official);
   $("sourceSelect").value = "official";
   render();
@@ -301,7 +390,17 @@ function render() {
     (100 * hits / certified.length).toFixed(1).replace(".", ",") + "%" : "—";
   $("rowsCount").textContent = records.length.toLocaleString("pt-BR") + " rodadas armazenadas";
   const last = records[records.length-1];
-  $("lastRound").textContent = last ? "Última rodada recebida: " + fmt(last.t) : "Nenhuma rodada recebida";
+  const staleMs = last ? Date.now() - last.t : Infinity;
+  const stale = staleMs > 15 * 60000;
+  const sourceName = sourceMode === "official" ? "Blitz oficial" : "Históricos Blaze";
+  $("lastRound").textContent = last ?
+    (stale ? "⚠ DADOS ANTIGOS — " : "Última rodada — ") + sourceName + ": " + fmt(last.t) :
+    "Nenhuma rodada recebida — " + sourceName;
+  $("freshnessLabel").textContent = !last ? "Sem resultados disponíveis" :
+    (stale ? "⚠ Atenção: a última rodada disponível é antiga (" + fmt(last.t) +
+      "). Estes NÃO são resultados ao vivo." :
+      "Última rodada: " + fmt(last.t) + " • Fonte: " + sourceName);
+  $("freshnessLabel").className = "freshness-label " + (stale ? "stale" : "fresh");
   renderSample();
   renderReplay();
 
@@ -309,7 +408,11 @@ function render() {
   const current = outcomes.find(x => x.start === nowStart);
   const currentLabel = $("currentState");
   const currentDetail = $("currentDetail");
-  if (!current) {
+  if (stale) {
+    currentLabel.textContent = "Histórico desatualizado";
+    currentDetail.textContent = last ? "Última rodada de " + fmt(last.t) + ". Não é possível monitorar a hora atual." :
+      "Ainda não recebemos rodadas desta fonte.";
+  } else if (!current) {
     currentLabel.textContent = "Aguardando dados desta hora";
     currentDetail.textContent = "Clique em Atualizar para tentar buscar as rodadas reais.";
   } else if (current.state === "acerto") {
@@ -350,21 +453,23 @@ function render() {
 }
 function refreshCooldown() {
   if (sourceMode === "official") {
-    $("updateBtn").disabled = true;
-    $("updateBtn").textContent = "Use os dois passos da API oficial acima";
-    return;
+    $("updateBtn").disabled = officialChecking || Date.now() < officialPauseUntil();
+    $("updateBtn").textContent = officialAutoWorking ?
+      "Atualizar pela API oficial" : "Testar acesso oficial automático";
+  } else {
+    const remaining = nextAllowed - Date.now();
+    $("updateBtn").disabled = updating || remaining > 0;
+    if (!updating) {
+      $("updateBtn").textContent = remaining > 0 ?
+        "Atualizado · recarregar às " + hm(nextAllowed) : "Atualizar resultados";
+    }
   }
-  const remaining = nextAllowed - Date.now();
-  $("updateBtn").disabled = updating || remaining > 0;
-  if (!updating) {
-    $("updateBtn").textContent = remaining > 0 ?
-      "Atualizado · recarregar às " + hm(nextAllowed) : "Atualizar resultados";
-  }
+  $("testOfficialAuto").disabled = officialChecking || Date.now() < officialPauseUntil();
 }
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function updateData() {
   if (sourceMode === "official") {
-    tell("Fonte oficial selecionada: use Abrir 100 resultados oficiais e o botão de importar. A leitura automática entre sites não está autorizada.", "normal");
+    await tryOfficialAuto();
     return;
   }
   if (updating || Date.now() < nextAllowed) return;
@@ -472,6 +577,7 @@ $("replayPosition").addEventListener("input", value => {
   renderReplay();
 });
 $("pasteAnalyzeBtn").addEventListener("click", analyzePasted);
+$("testOfficialAuto").addEventListener("click", tryOfficialAuto);
 $("clipboardImport").addEventListener("click", importClipboard);
 $("manualOfficialImport").addEventListener("click", () => {
   try { importOfficialText($("officialPaste").value); $("officialPaste").value = ""; }
@@ -496,6 +602,17 @@ $("clearBtn").addEventListener("click", () => {
   tell("Histórico novo apagado somente deste navegador.", "normal");
 });
 render();
-updateData(); // Na abertura, lê apenas o arquivo publicado no nosso próprio site.
+updateData(); // Lê o arquivo público do histórico alternativo, se ele estiver selecionado.
+if (typeof window !== "undefined" && typeof fetch === "function") {
+  if (Date.now() >= officialPauseUntil()) tryOfficialAuto(); // Uma tentativa, sem insistência.
+  else autoStatus("Tentativa oficial pausada até " + fmt(officialPauseUntil()) +
+    ". O histórico alternativo continua disponível.");
+}
 setInterval(refreshCooldown, 30000);
-setInterval(updateData, 10 * 60000); // O coletor na origem roda separadamente, no GitHub.
+setInterval(() => {
+  if (sourceMode === "official" && officialAutoWorking) {
+    tryOfficialAuto();
+  } else if (sourceMode === "historicos") {
+    updateData();
+  }
+}, 10 * 60000);

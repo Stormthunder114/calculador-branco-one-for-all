@@ -48,7 +48,7 @@
       <section class="panel official-import">
         <div class="section-heading"><div>
           <h2>Resultados da API oficial da Blitz</h2>
-          <p>Você consegue abrir a API no seu navegador. Use a cópia da página para atualizar os resultados oficiais no One For All, sem editar JSON.</p>
+          <p>O site tentará uma leitura direta da API com datas atuais. Se a Blitz não permitir acesso entre sites, você ainda poderá importar os 100 resultados sem editar JSON.</p>
         </div><span class="state" id="sourceLabel">Fonte: Históricos Blaze</span></div>
         <div class="import-steps">
           <div><span class="step-number">1</span><strong>Abra os resultados da Blitz</strong>
@@ -60,7 +60,13 @@
             <button type="button" class="primary" id="clipboardImport">Atualizar usando o que copiei</button>
           </div>
         </div>
-        <p class="import-message" id="importMessage" role="status" aria-live="polite">Não exige login nem programação. Os resultados ficam salvos só no seu navegador.</p>
+        <div class="auto-test">
+          <div><strong>Conexão automática com a Blitz</strong>
+            <p id="officialAutoStatus" role="status" aria-live="polite">Verificando se a API permite que nosso site leia os resultados.</p>
+          </div>
+          <button type="button" id="testOfficialAuto" class="secondary">Testar acesso direto</button>
+        </div>
+        <p class="import-message" id="importMessage" role="status" aria-live="polite">Se a conexão automática não funcionar, use a importação acima. O site não pode contornar restrições da origem.</p>
         <details>
           <summary>Se o botão não conseguir ler o texto copiado</summary>
           <div class="details-body">
@@ -98,6 +104,7 @@
           <div><span>⚫ Preto</span><strong id="sampleBlack">0</strong></div>
         </div>
         <p class="sample-summary" id="sampleSummary">Sem resultados armazenados. A amostra não representa previsão.</p>
+        <p class="freshness-label" id="freshnessLabel" role="status" aria-live="polite">Aguardando a primeira coleta.</p>
         <div id="recentBalls" class="balls" aria-label="Cores das rodadas recentes">Os resultados aparecerão aqui após a primeira conexão.</div>
       </section>
 

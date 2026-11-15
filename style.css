@@ -113,3 +113,15 @@ footer{border-top:1px solid var(--stroke);padding-top:20px;text-align:center;fon
 .source-control label{font-size:.84rem;color:var(--muted)}
 .source-control select{background:#263b50;color:var(--txt);border:1px solid #496479;border-radius:9px;padding:8px;font:inherit;max-width:100%}
 @media(max-width:680px){.import-steps{grid-template-columns:1fr}.official-import .section-heading{align-items:start}.import-steps>div{padding:13px}}
+
+
+/* Origem e idade dos registros — sem confundir histórico com tempo real */
+.freshness-label{font-size:.85rem;margin:0 0 15px;padding:10px 12px;border-radius:9px}
+.freshness-label.stale{border:1px solid #a2753b;background:#40311f;color:#ffe4b2}
+.freshness-label.fresh{border:1px solid #287661;background:#153a34;color:#b5f8d9}
+.auto-test{display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:15px;background:#10283d;border:1px solid #395b72;border-radius:12px;margin:13px 0}
+.auto-test strong{font-size:.91rem}
+.auto-test p{margin:5px 0 0;font-size:.82rem;color:var(--muted)}
+.auto-test button{flex-shrink:0}
+@media(max-width:660px){.auto-test{display:block}.auto-test button{display:block;width:100%;margin-top:12px}}
