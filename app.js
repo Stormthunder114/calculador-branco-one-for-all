@@ -160,6 +160,10 @@ function hourResults(now = Date.now()) {
   }
   return outcomes.sort((a,b)=>b.hour-a.hour);
 }
+function showConnectionDetail(text) {
+  const field = $("requestInfo");
+  if (field) field.textContent = text;
+}
 function setStatus(type,message) {
   state=type;
   reason=message;
@@ -286,7 +290,8 @@ async function updateLive() {
   if (lastRequestedAt && Date.now()-lastRequestedAt<POLL_MS) return;
   if (typeof document !== "undefined" && document.hidden) return;
   inFlight=true;
-  setStatus("loading","Consultando a página 1 da API oficial da Blitz...");
+  setStatus("loading","Consultando o endereço oficial da Blitz sem parâmetros...");
+  showConnectionDetail("Requisição iniciada: " + formatTime(Date.now()) + ". Aguardando resposta da API.");
   let controller=null,timeout=null;
   try {
     controller=typeof AbortController!=="undefined" ? new AbortController():null;
@@ -297,6 +302,7 @@ async function updateLive() {
       method:"GET",mode:"cors",credentials:"omit",cache:"no-store",
       ...(controller ? {signal:controller.signal}: {})
     });
+    showConnectionDetail("Resposta HTTP " + response.status + " recebida da API oficial.");
     if (response.status===429) {
       blockUntil=retryAfter(response,Date.now());
       setStatus("rate-limited","A Blitz limitou as consultas (HTTP 429). Respeitaremos o intervalo solicitado.");
@@ -320,6 +326,8 @@ async function updateLive() {
     mergeOfficial(parsed,Date.now());
     everConnected=true;
     lastFetchedAt=Date.now();
+    showConnectionDetail("Sucesso: HTTP 200; " + parsed.length +
+      " rodadas verificadas. Recebido em " + formatTime(Date.now()) + ".");
     const age=Date.now()-latest[0].t;
     setStatus(age<=FRESH_MS?"live":"delayed",
       age<=FRESH_MS?
@@ -338,6 +346,8 @@ async function updateLive() {
       setStatus("delayed",error.message);
     } else {
       // Sem resposta HTTP acessível não é possível distinguir CORS de rede.
+      showConnectionDetail("O navegador não disponibilizou um status HTTP. Isso pode indicar CORS " +
+        "ou falha de rede. O fato de a mesma URL abrir em outra aba não autoriza a leitura pelo GitHub Pages.");
       stopAutomatic=true;
       setStatus("unavailable",
         "O navegador não conseguiu ler a resposta da Blitz. Pode ser CORS ou falha de rede. "+
@@ -370,6 +380,7 @@ function onRefreshClick() {
   if (!inFlight && !stopAutomatic && Date.now()>=blockUntil) updateLive();
 }
 $("refreshBtn").addEventListener("click",onRefreshClick);
+$("requestedUrl").textContent=buildApiUrl();
 $("apiLink").href=buildApiUrl();
 $("apiInfoLink").href=buildApiUrl();
 document.addEventListener("visibilitychange",()=>{
