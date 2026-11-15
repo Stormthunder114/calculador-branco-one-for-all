@@ -55,13 +55,11 @@ test("Só existe uma fonte, sem histórico Blaze nem importação manual",()=>{
   assert.doesNotMatch(JS,/historicosblaze|clipboard|parsePastedNumbers|sourceMode|pasteRolls/i);
   assert.doesNotMatch(HTML,/historicosblaze|clipboardImport|officialPaste|manualOfficialImport|testar as cores manualmente|atualizacao-automatica\.js/i);
 });
-test("Gera datas dinâmicas e consulta apenas a página 1",()=>{
-  const {ctx,now}=harness();
-  const url=new URL(ctx.buildApiUrl(now));
-  assert.equal(url.pathname,"/api/singleplayer-originals/originals/roulette_games/recent/history/1");
-  assert.equal(url.searchParams.get("page"),"1");
-  assert.equal(Date.parse(url.searchParams.get("endDate")),now);
-  assert.equal(now-Date.parse(url.searchParams.get("startDate")),3*3600000);
+test("Usa exatamente o endpoint oficial sem datas e sem parâmetros",()=>{
+  const {ctx}=harness();
+  const endpoint=ctx.buildApiUrl();
+  assert.equal(endpoint,"https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1?");
+  assert.equal(endpoint.split("?")[1],"");
 });
 test("Valida 100 resultados oficiais e organiza do antigo ao recente",()=>{
   const {ctx,now}=harness();
