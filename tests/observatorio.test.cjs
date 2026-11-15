@@ -103,3 +103,32 @@ test('duplicação da mesma rodada não aumenta o histórico', () => {
   assert.equal(ctx.mergeRecords(input),3);
   assert.equal(ctx.mergeRecords(input),0);
 });
+
+
+test('lê sequência de números e ignora horários colados do site externo', () => {
+  const ctx=harness();
+  const values=Array.from(ctx.parsePastedNumbers('14\n15:01\n2\n15:00\nImage: Branco\n14:59\n7'));
+  assert.deepEqual(values,[14,2,0,7]);
+});
+test('contagens de cores de amostra de 200 são descritivas', () => {
+  const ctx=harness();
+  ctx.mergeRecords(sequence([0,1,2,1,0]));
+  ctx.render();
+  assert.match(ctx.document.getElementById('sampleWhite').textContent,/^2 \(40,0%\)/);
+  assert.match(ctx.document.getElementById('sampleYellow').textContent,/^2 \(40,0%\)/);
+  assert.match(ctx.document.getElementById('sampleBlack').textContent,/^1 \(20,0%\)/);
+});
+test('replay inicia no registro mais novo depois da primeira coleta', () => {
+  const ctx=harness();
+  ctx.mergeRecords(sequence([1,1,0]));
+  ctx.render();
+  assert.match(ctx.document.getElementById('replayState').textContent,/Rodada 3\/3/);
+});
+test('análise dos números colados não altera os acertos validados', () => {
+  const ctx=harness();
+  ctx.document.getElementById('pasteRolls').value='6 5 8 8 0';
+  ctx.document.getElementById('pasteOrder').value='old';
+  ctx.analyzePasted();
+  assert.match(ctx.document.getElementById('pasteResult').textContent,/tentativa 3\/11/);
+  assert.equal(ctx.groupHours().length,0);
+});
