@@ -256,9 +256,11 @@ function renderSchedule() {
     return;
   }
   if (stopAutomatic) {
-    el.textContent="Consulta automática suspensa; o servidor não autorizou o acesso.";
+    el.textContent=state==="denied" ?
+      "Servidor recusou a consulta. A coleta foi suspensa." :
+      "Não foi possível ler a resposta (CORS ou rede). Coleta suspensa para evitar repetição.";
     button.disabled=true;
-    button.textContent="Consulta bloqueada";
+    button.textContent=state==="denied"?"Acesso recusado":"Não foi possível conectar";
     return;
   }
   if (Date.now()<blockUntil) {
