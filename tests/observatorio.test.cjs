@@ -219,5 +219,5 @@ test('falha ao ler a API interrompe novas tentativas automáticas', async () => 
   await ctx.tryOfficialAuto();
   await ctx.tryOfficialAuto();
   assert.equal(attempts,1);
-  assert.ok(Number(ctx.localStorage.getItem('ofa_blitz_auto_pause_until_v1')) > START+HOUR);
+  assert.ok(Number(ctx.localStorage.getItem('ofa_blitz_auto_pause_until_v1')) > START+60*60000);
 });
