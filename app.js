@@ -30,6 +30,7 @@ let reason = "Conectando à API oficial...";
 let inFlight = false;
 let everConnected = false;
 let lastFetchedAt = 0;
+let lastRequestedAt = 0;
 let nextRequestAt = 0;
 let blockUntil = 0;
 let stopAutomatic = false;
@@ -283,6 +284,7 @@ function retryAfter(response,now) {
 }
 async function updateLive() {
   if (inFlight || stopAutomatic || Date.now()<blockUntil) return;
+  if (lastRequestedAt && Date.now()-lastRequestedAt<POLL_MS) return;
   if (typeof document !== "undefined" && document.hidden) return;
   inFlight=true;
   setStatus("loading","Consultando a página 1 da API oficial da Blitz...");
@@ -291,6 +293,7 @@ async function updateLive() {
     controller=typeof AbortController!=="undefined" ? new AbortController():null;
     if (controller) timeout=setTimeout(()=>controller.abort(),15000);
     const requestedAt=Date.now();
+    lastRequestedAt=requestedAt;
     const response=await fetch(buildApiUrl(requestedAt),{
       method:"GET",mode:"cors",credentials:"omit",cache:"no-store",
       ...(controller ? {signal:controller.signal}: {})
@@ -386,4 +389,4 @@ setInterval(()=>{
   renderSchedule();
 },30000);
 render();
-updateLive();
+if (typeof window !== "undefined") updateLive();
