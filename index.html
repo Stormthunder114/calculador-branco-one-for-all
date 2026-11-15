@@ -2,12 +2,14 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-mobile-web-app-title" content="One For All">
   <meta name="theme-color" content="#091521">
   <meta name="description" content="One For All: painel de monitoramento estatístico dos últimos 100 resultados oficiais do Double da Blitz.">
   <title>One For All | Double ao vivo</title>
   <link rel="stylesheet" href="./style.css">
-  <script src="./app.js?v=20261115-diagnostico-url" defer></script>
+  <script src="./app.js?v=20261115-mobile-plus-v1" defer></script>
 </head>
 <body>
   <div class="shell">
@@ -20,17 +22,19 @@
       <section class="hero">
         <div class="hero-heading">
           <div class="eyebrow"><span class="eyebrow-dot"></span> SOMENTE RESULTADOS OFICIAIS</div>
-          <h1>Double <span>ao vivo.</span></h1>
-          <p>As últimas 100 rodadas, números e cores, diretamente da API oficial da Blitz. Nenhuma fonte alternativa e nenhum lançamento manual.</p>
+          <h1>Double <span>em tempo real.</span></h1>
+          <p>Resultados oficiais, histórico de até 300 rodadas e estatísticas atualizadas quando a Blitz permitir a consulta. Sem fontes alternativas nem lançamentos manuais.</p>
           <div class="connection">
             <span class="status-dot" id="statusDot" aria-hidden="true"></span>
             <span id="statusBadge" aria-live="polite">Conectando...</span>
+            <span class="live-clock" id="liveClock" aria-label="Horário de Brasília">--:--:--</span>
           </div>
         </div>
         <div class="status-panel">
           <div class="small-label">ÚLTIMA RODADA OFICIAL</div>
           <div class="last-result" id="lastResult">Aguardando conexão</div>
           <p id="lastResultDetails">O primeiro carregamento acontecerá automaticamente.</p>
+          <div class="sync-meta"><span>Última consulta</span><strong id="lastChecked">Ainda não realizada</strong></div>
           <button id="refreshBtn" class="action" type="button">Atualizar agora</button>
           <p class="hint" id="nextUpdate">A atualização é automática enquanto esta página estiver aberta.</p>
         </div>
@@ -39,12 +43,13 @@
       <div id="notice" class="notice neutral" role="status" aria-live="polite">
         Consultando a API oficial sem filtros de data, com até 100 resultados.
       </div>
-      <section class="request-info" aria-label="Diagnóstico da conexão">
-        <div><strong>Endereço realmente consultado</strong>
+      <details class="request-info" aria-label="Diagnóstico da conexão">
+        <summary>Detalhes da conexão e diagnóstico</summary>
+        <div class="details-inner"><strong>Endereço consultado</strong>
           <code id="requestedUrl">https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1?</code>
+          <p id="requestInfo" aria-live="polite">Aguardando resposta. Abrir a URL diretamente não garante autorização de leitura entre domínios.</p>
         </div>
-        <p id="requestInfo" aria-live="polite">Aguardando a resposta do servidor. Abrir a URL em outra aba não garante que o site possa ler os dados.</p>
-      </section>
+      </details>
 
       <section class="stats" aria-label="Estatísticas das rodadas oficiais">
         <div class="stat"><span>Rodadas recebidas</span><strong id="sampleTotal">—</strong><small>Máximo de 100 por consulta</small></div>
@@ -59,6 +64,28 @@
           <div class="legend"><span><i class="ball-key key-white"></i>Branco</span><span><i class="ball-key key-yellow"></i>Amarelo</span><span><i class="ball-key key-black"></i>Preto</span></div>
         </div>
         <div class="rounds" id="rounds" aria-label="Resultados da API oficial">Os resultados aparecerão quando a Blitz permitir a consulta.</div>
+        <div class="frequency-bars" aria-label="Frequência das cores na última amostra">
+          <span class="bar-segment white-segment" id="barWhite"></span>
+          <span class="bar-segment yellow-segment" id="barYellow"></span>
+          <span class="bar-segment black-segment" id="barBlack"></span>
+        </div>
+        <p class="sample-footnote">Ordem: mais recente primeiro · Toque em uma bola para ver o horário.</p>
+      </section>
+
+      <section class="panel" id="historico300">
+        <div class="panel-title">
+          <div><h2>Histórico oficial acumulado</h2><p id="archiveDescription">Até 300 rodadas recebidas em consultas autorizadas. O histórico não é uma conexão ao vivo.</p></div>
+          <span class="history-count" id="archiveCount">0 / 300</span>
+        </div>
+        <div class="archive-metrics">
+          <div><span>Brancos no histórico</span><strong id="archiveWhites">—</strong></div>
+          <div><span>Intervalo médio entre brancos</span><strong id="archiveMeanGap">—</strong></div>
+          <div><span>Maior intervalo observado</span><strong id="archiveMaxGap">—</strong></div>
+        </div>
+        <details class="archive-disclosure">
+          <summary>Ver todas as rodadas acumuladas</summary>
+          <div class="rounds history-rounds" id="archiveRounds">O histórico ficará disponível após uma consulta oficial bem-sucedida.</div>
+        </details>
       </section>
 
       <section class="panel">
@@ -79,9 +106,14 @@
         </div>
       </section>
 
+      <section class="panel connection-history">
+        <div class="panel-title"><div><h2>Registro da conexão</h2><p>Últimos eventos desta sessão, para identificar por que a API não respondeu.</p></div></div>
+        <div class="event-list" id="eventList">Aguardando primeiro teste de conexão.</div>
+      </section>
+
       <section class="help">
         <h2>Como funciona a atualização?</h2>
-        <p>O One For All consulta diretamente a <a id="apiInfoLink" href="https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1" target="_blank" rel="noopener noreferrer">API oficial da Blitz</a>, sem parâmetros de data, conforme o endereço que você testou. Enquanto houver acesso autorizado e a aba estiver ativa, tenta uma atualização aproximadamente a cada 2 minutos.</p>
+        <p>O One For All consulta diretamente a <a id="apiInfoLink" href="https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1" target="_blank" rel="noopener noreferrer">API oficial da Blitz</a>, sem parâmetros de data, conforme o endereço que você testou. Quando o serviço permite leitura, atualiza aproximadamente a cada 2 minutos com a aba ativa. O celular pode suspender atualizações em segundo plano.</p>
         <p>Se a Blitz bloquear a leitura entre sites (CORS) ou retornar HTTP 403, 429 ou 451, o painel indicará a falha. Não utiliza proxies, dados fictícios ou outra fonte para simular resultados ao vivo.</p>
       </section>
       <p class="disclaimer">Observação estatística: as rodadas anteriores não permitem prever o próximo resultado. Sem apostas nem garantia de acerto.</p>
