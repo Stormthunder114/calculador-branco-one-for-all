@@ -1,0 +1,319 @@
+"use strict";
+
+/* ONE FOR ALL | Observatório Blitz
+   Nunca gera previsões nem horários de apostas.
+   Regras fixadas em 15/11/2026, sem ajuste após observar dados. */
+const API = "https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1";
+const CUTOFF_ISO = "2026-11-15T04:00:00.000Z"; // 15/11/2026 01h, Brasília
+const CUTOFF = Date.parse(CUTOFF_ISO);
+const HOUR = 3600000;
+const MAX_GAP = 150000;
+const COOLDOWN = 10 * 60000;
+const PAGE_DELAY = 15000;
+const STORE = "ofa_blitz_records_v2";
+const MANUAL_STORE = "ofa_blitz_treino_v2";
+const LIMIT_STORE = 7500;
+const $ = (id) => document.getElementById(id);
+const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit",
+  year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+});
+const hourFormatter = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+});
+let records = readStorage(STORE, []);
+let training = readStorage(MANUAL_STORE, []);
+let updating = false;
+let nextAllowed = Number(localStorage.getItem("ofa_blitz_next_allowed_v2") || 0);
+
+function readStorage(key, fallback) {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || "null");
+    return Array.isArray(value) ? value : fallback;
+  } catch (_) { return fallback; }
+}
+function tell(message, kind) {
+  const el = $("notice");
+  el.textContent = message;
+  el.className = "notice " + (kind || "normal");
+}
+function sanitizeRecord(raw) {
+  if (!raw || raw.id === null || raw.id === undefined) return null;
+  const color = Number(raw.color);
+  if (![0, 1, 2].includes(color)) return null;
+  const originalTime = String(raw.created_at || "");
+  const timeString = /(?:Z|[+-]\d{2}:\d{2})$/i.test(originalTime) ? originalTime : originalTime + "Z";
+  const time = Date.parse(timeString);
+  if (!Number.isFinite(time) || time < CUTOFF || time > Date.now() + 120000) return null;
+  return { id: String(raw.id), t: time, c: color, roll: raw.roll };
+}
+function mergeRecords(input) {
+  const map = new Map(records.filter(r => r && r.id).map(r => [r.id, r]));
+  let received = 0;
+  for (const raw of input) {
+    const row = sanitizeRecord(raw);
+    if (!row) continue;
+    if (!map.has(row.id)) received++;
+    map.set(row.id, row);
+  }
+  records = [...map.values()].sort((a,b) => a.t - b.t).slice(-LIMIT_STORE);
+  try { localStorage.setItem(STORE, JSON.stringify(records)); }
+  catch (_) { tell("Não foi possível salvar todas as rodadas neste navegador.", "warn"); }
+  return received;
+}
+function gapBefore(list, index) {
+  return index > 0 && (list[index].t - list[index - 1].t > MAX_GAP ||
+    list[index].t <= list[index - 1].t);
+}
+function groupHours() {
+  const ordered = records.filter(r => r && Number.isFinite(r.t) && [0,1,2].includes(r.c))
+    .sort((a,b) => a.t - b.t);
+  const hours = new Map();
+  ordered.forEach((r,i) => {
+    if (r.t < CUTOFF) return;
+    const hourStart = Math.floor(r.t / HOUR) * HOUR;
+    if (!hours.has(hourStart)) hours.set(hourStart, []);
+    hours.get(hourStart).push({ ...r, globalIndex: i });
+  });
+
+  const now = Date.now();
+  const outcomes = [];
+  for (const [start, rows] of hours) {
+    const result = { start, state: "incompleto", trigger: null, attempt: null, examined: 0 };
+    // Uma primeira rodada tardia pode esconder um par anterior.
+    if (!rows.length || rows[0].t > start + MAX_GAP) {
+      outcomes.push(result); continue;
+    }
+    let hole = false, second = -1;
+    for (let j = 1; j < rows.length; j++) {
+      if (gapBefore(rows,j)) { hole = true; break; }
+      if (rows[j-1].c === 1 && rows[j].c === 1) { second = j; break; }
+    }
+    if (hole) { outcomes.push(result); continue; }
+
+    if (second < 0) {
+      const last = rows[rows.length-1];
+      const fullHour = now >= start + HOUR &&
+        last.t >= start + HOUR - MAX_GAP;
+      result.state = fullHour ? "sem-sinal" : (last.t >= now - MAX_GAP ? "aguardando" : "incompleto");
+      outcomes.push(result);
+      continue;
+    }
+
+    const trigger = rows[second];
+    result.trigger = trigger.t;
+    result.state = "pendente";
+    let previous = trigger;
+    for (let attempt = 1; attempt <= 11; attempt++) {
+      const next = ordered[trigger.globalIndex + attempt];
+      if (!next) {
+        result.state = previous.t >= now - MAX_GAP ? "pendente" : "incompleto";
+        break;
+      }
+      if (next.t - previous.t > MAX_GAP || next.t <= previous.t) {
+        result.state = "incompleto";
+        break;
+      }
+      result.examined = attempt;
+      if (next.c === 0) {
+        result.state = "acerto";
+        result.attempt = attempt;
+        break;
+      }
+      previous = next;
+      if (attempt === 11) result.state = "falha";
+    }
+    outcomes.push(result);
+  }
+  return outcomes.sort((a,b) => b.start - a.start);
+}
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, char => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
+  })[char]);
+}
+function fmt(t) { return dateFormatter.format(new Date(t)); }
+function hm(t) { return hourFormatter.format(new Date(t)); }
+function ballsHTML(list) {
+  return list.map(r => '<span class="ball c' + r.c + '" title="' +
+    escapeHtml(fmt(r.t)) + '">' + (r.c === 0 ? "0" : "") + "</span>").join("");
+}
+function render() {
+  const outcomes = groupHours();
+  const certified = outcomes.filter(x => x.state === "acerto" || x.state === "falha");
+  const hits = certified.filter(x => x.state === "acerto").length;
+  const misses = certified.length - hits;
+  $("newTests").textContent = String(certified.length);
+  $("newHits").textContent = String(hits);
+  $("newMisses").textContent = String(misses);
+  $("combined").textContent = (100 * (3 + hits) / (5 + certified.length)).toFixed(1).replace(".", ",") + "%";
+  $("newRate").textContent = certified.length ?
+    (100 * hits / certified.length).toFixed(1).replace(".", ",") + "%" : "—";
+  $("rowsCount").textContent = records.length.toLocaleString("pt-BR") + " rodadas armazenadas";
+  const last = records[records.length-1];
+  $("lastRound").textContent = last ? "Última rodada recebida: " + fmt(last.t) : "Nenhuma rodada recebida";
+  $("recentBalls").innerHTML = ballsHTML(records.slice(-26).reverse());
+  if (!records.length) $("recentBalls").textContent = "Os resultados aparecerão aqui após a primeira conexão.";
+
+  const nowStart = Math.floor(Date.now() / HOUR) * HOUR;
+  const current = outcomes.find(x => x.start === nowStart);
+  const currentLabel = $("currentState");
+  const currentDetail = $("currentDetail");
+  if (!current) {
+    currentLabel.textContent = "Aguardando dados desta hora";
+    currentDetail.textContent = "Clique em Atualizar para tentar buscar as rodadas reais.";
+  } else if (current.state === "acerto") {
+    currentLabel.textContent = "Branco observado";
+    currentDetail.textContent = "Apareceu na tentativa " + current.attempt + " de 11 após o par amarelo.";
+  } else if (current.state === "falha") {
+    currentLabel.textContent = "11 rodadas sem branco";
+    currentDetail.textContent = "Falha registrada para esta hora.";
+  } else if (current.trigger !== null) {
+    currentLabel.textContent = current.state === "pendente" ?
+      "Par amarelo encontrado" : "Dados incompletos";
+    currentDetail.textContent = current.state === "pendente" ?
+      "Observadas " + current.examined + " das 11 rodadas após " + hm(current.trigger) + "." :
+      "Há uma lacuna nos registros; não é possível validar o sinal.";
+  } else {
+    currentLabel.textContent = current.state === "aguardando" ?
+      "Aguardando dois amarelos" : "Dados incompletos nesta hora";
+    currentDetail.textContent = current.state === "aguardando" ?
+      "Nenhum par confirmado na sequência coletada desta hora." :
+      "Precisamos da sequência desde o começo da hora para validar o primeiro par.";
+  }
+
+  const labels = {
+    "acerto": "Branco", "falha": "Falha", "pendente": "Em observação",
+    "sem-sinal": "Sem par amarelo", "aguardando": "Aguardando", "incompleto": "Dados incompletos"
+  };
+  $("historyBody").innerHTML = outcomes.slice(0,36).map(x => {
+    const text = x.state === "acerto" ? "Tentativa " + x.attempt + "/11" :
+      x.state === "falha" ? "11/11" :
+      x.state === "pendente" ? x.examined + "/11 rodadas" : "—";
+    return '<tr><td>' + escapeHtml(fmt(x.start)) + '</td><td>' +
+      (x.trigger !== null ? escapeHtml(hm(x.trigger)) : "—") +
+      '</td><td><span class="state s-' + x.state + '">' + labels[x.state] +
+      '</span></td><td>' + text + '</td></tr>';
+  }).join("") || '<tr><td colspan="4" class="empty">Ainda não há horas com registros.</td></tr>';
+  renderTraining();
+  refreshCooldown();
+}
+function refreshCooldown() {
+  const remaining = nextAllowed - Date.now();
+  $("updateBtn").disabled = updating || remaining > 0;
+  if (!updating) {
+    $("updateBtn").textContent = remaining > 0 ?
+      "Nova consulta às " + hm(nextAllowed) : "Atualizar resultados";
+  }
+}
+const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+async function updateData() {
+  if (updating || Date.now() < nextAllowed) return;
+  updating = true;
+  nextAllowed = Date.now() + COOLDOWN;
+  localStorage.setItem("ofa_blitz_next_allowed_v2", String(nextAllowed));
+  $("updateBtn").textContent = "Conectando à Blitz...";
+  $("updateBtn").disabled = true;
+  const ending = new Date().toISOString(); // Congela o intervalo para a paginação.
+  let newCount = 0;
+  let successfulPages = 0;
+  try {
+    for (let page = 1; page <= 2; page++) {
+      if (page === 2) {
+        tell("Primeira página recebida. Consultando a segunda após uma pausa...", "normal");
+        await pause(PAGE_DELAY);
+      }
+      const url = API + "?startDate=" + encodeURIComponent(CUTOFF_ISO) +
+        "&endDate=" + encodeURIComponent(ending) + "&page=" + page;
+      let response;
+      try { response = await fetch(url, { method: "GET", mode: "cors", cache: "no-store", credentials: "omit" }); }
+      catch (_) {
+        throw new Error("A Blitz não autorizou a conexão do navegador ou a rede falhou. Os dados salvos continuam disponíveis.");
+      }
+      if (response.status === 429) {
+        const raw = response.headers.get("Retry-After");
+        const seconds = /^\d+$/.test(raw || "") ? Number(raw) :
+          (raw && Number.isFinite(Date.parse(raw)) ? Math.max(0, (Date.parse(raw) - Date.now()) / 1000) : 1800);
+        nextAllowed = Math.max(nextAllowed, Date.now() + Math.max(1800,seconds) * 1000);
+        localStorage.setItem("ofa_blitz_next_allowed_v2", String(nextAllowed));
+        throw new Error("A Blitz pediu uma pausa (limite 429). A próxima tentativa foi adiada.");
+      }
+      if (!response.ok) throw new Error("A Blitz respondeu com erro HTTP " + response.status + ".");
+      const body = await response.json();
+      const batch = Array.isArray(body.records) ? body.records :
+        (body.data && Array.isArray(body.data.records) ? body.data.records : null);
+      if (!batch) throw new Error("A Blitz retornou um formato de dados diferente do esperado.");
+      successfulPages++;
+      newCount += mergeRecords(batch);
+      render();
+      if (batch.length < 100) break;
+    }
+    tell("Atualização concluída: " + newCount + " rodadas novas. Só classificamos sinais com dados suficientes.", "ok");
+  } catch (error) {
+    tell(error.message + (successfulPages ? " Os dados já recebidos foram salvos." : ""), "warn");
+  } finally {
+    updating = false;
+    refreshCooldown();
+  }
+}
+function trainingState() {
+  let trigger = -1;
+  for (let i=1; i<training.length; i++) {
+    if (training[i-1] === 1 && training[i] === 1) { trigger=i; break; }
+  }
+  if (trigger < 0) return { state:"waiting", count:0 };
+  const following = training.slice(trigger + 1, trigger + 12);
+  const white = following.indexOf(0);
+  if (white >= 0) return {state:"hit",count:white+1};
+  if (following.length === 11) return {state:"miss",count:11};
+  return {state:"watching",count:following.length};
+}
+function renderTraining() {
+  const state = trainingState();
+  const messages = {
+    waiting:"Aguardando dois amarelos consecutivos.",
+    watching:"Par encontrado. Rodadas seguintes: " + state.count + "/11.",
+    hit:"Branco na tentativa " + state.count + "/11. Encerrou!",
+    miss:"11 rodadas sem branco. Encerrou!"
+  };
+  $("trainingState").textContent = messages[state.state];
+  $("trainingBalls").innerHTML = training.map(c =>
+    '<span class="ball c' + c + '">' + (c === 0 ? "0" : "") + "</span>").join("");
+  for (const id of ["whiteBtn","yellowBtn","blackBtn"]) $(id).disabled =
+    state.state === "hit" || state.state === "miss";
+}
+function addTraining(color) {
+  if (["hit","miss"].includes(trainingState().state)) return;
+  if (training.length >= 100) { tell("Reinicie o treino para continuar.", "warn"); return; }
+  training.push(color);
+  localStorage.setItem(MANUAL_STORE, JSON.stringify(training));
+  renderTraining();
+}
+function exportCopy() {
+  const snapshot = {
+    version:2, exported_at:new Date().toISOString(), observations:records,
+    legacy_validation:{signals:5,hits:3,misses:2,white_attempts:[7,8,10]},
+    note:"Estudo estatístico, não uma ferramenta de previsão."
+  };
+  const blob = new Blob([JSON.stringify(snapshot,null,2)],{type:"application/json"});
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "one-for-all-historico-" + new Date().toISOString().slice(0,10) + ".json";
+  document.body.appendChild(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href),1000);
+}
+$("updateBtn").addEventListener("click", updateData);
+$("whiteBtn").addEventListener("click", () => addTraining(0));
+$("yellowBtn").addEventListener("click", () => addTraining(1));
+$("blackBtn").addEventListener("click", () => addTraining(2));
+$("resetTraining").addEventListener("click", () => {
+  training = []; localStorage.removeItem(MANUAL_STORE); renderTraining();
+});
+$("exportBtn").addEventListener("click", exportCopy);
+$("clearBtn").addEventListener("click", () => {
+  if (!confirm("Apagar as rodadas coletadas neste navegador? O histórico anterior de 3/5 será preservado.")) return;
+  records = []; localStorage.removeItem(STORE); render();
+  tell("Histórico novo apagado somente deste navegador.", "normal");
+});
+render();
+setInterval(refreshCooldown, 30000);
