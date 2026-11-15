@@ -17,4 +17,4 @@ jobs:
       - name: Verificar JavaScript
         run: node --check app.js
       - name: Verificar regra fixa
-        run: node --test tests/observatorio.test.cjs
+        run: node --test tests/*.test.cjs
