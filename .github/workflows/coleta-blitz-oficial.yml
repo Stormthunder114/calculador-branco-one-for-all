@@ -3,9 +3,6 @@ on:
   schedule:
     - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
-  push:
-    branches:
-      - api-oficial-ultimas-100-20261115
 permissions:
   contents: write
 concurrency:
