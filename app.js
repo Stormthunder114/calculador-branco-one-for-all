@@ -161,7 +161,7 @@ function renderSample() {
 }
 function renderReplay() {
   const sample = records.slice(-200);
-  if (replayPos === null || replayPos > sample.length) replayPos = sample.length;
+  if (replayPos === null || (replayPos === 0 && sample.length > 0) || replayPos > sample.length) replayPos = sample.length;
   const slider = $("replayPosition");
   slider.max = String(sample.length || 1);
   slider.min = "1";
