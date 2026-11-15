@@ -1,4 +1,4 @@
-"""Servidor local One For All. Python 3.10+, sem depend�ncias externas."""
+"""Servidor local One For All. Python 3.10+, sem dependências externas."""
 import argparse
 import json
 import math
@@ -44,7 +44,7 @@ def validate_records(body, now):
         except (KeyError, TypeError, ValueError, AttributeError):
             continue
     if len(valid) < max(1, (min(len(records), 100) * 8 + 9) // 10):
-        raise ValueError("Resposta incompleta ou inv�lida.")
+        raise ValueError("Resposta incompleta ou inválida.")
     result = sorted(valid.values(), key=lambda r: datetime.fromisoformat(r["created_at"].replace("Z", "+00:00")).timestamp())
     if now - datetime.fromisoformat(result[-1]["created_at"].replace("Z", "+00:00")).timestamp() > 600:
         raise ValueError("A API devolveu resultados antigos.")
@@ -66,7 +66,7 @@ class Feed:
     def __init__(self):
         self.condition = threading.Condition()
         self.version = 0
-        self.snapshot = {"status": "loading", "message": "Conectando � Blitz pelo Python...",
+        self.snapshot = {"status": "loading", "message": "Conectando à Blitz pelo Python...",
                          "records": [], "checked_at": 0, "next_check": 0}
 
     def publish(self, **changes):
@@ -83,7 +83,7 @@ class Feed:
 
 def collect_once(feed, opener=urlopen, clock=time.time):
     now = clock()
-    status, message, delay = "live", "Conectado � Blitz � atualiza��o autom�tica pelo Python.", POLL_SECONDS
+    status, message, delay = "live", "Conectado à Blitz · atualização automática pelo Python.", POLL_SECONDS
     changes = {}
     try:
         request = Request(API, headers={"Accept": "application/json", "User-Agent": "OneForAllLocal/1.0"})
@@ -94,16 +94,16 @@ def collect_once(feed, opener=urlopen, clock=time.time):
             changes["records"] = validate_records(json.loads(body), clock())
     except HTTPError as error:
         if error.code == 429:
-            status, message = "rate-limited", "A Blitz limitou as consultas. Aguardando o intervalo de libera��o."
+            status, message = "rate-limited", "A Blitz limitou as consultas. Aguardando o intervalo de liberação."
             delay = retry_seconds(error.headers.get("Retry-After"), clock())
         elif error.code in (401, 403, 451):
             status, message, delay = "denied", f"A Blitz respondeu HTTP {error.code}. Coleta suspensa.", None
         else:
             status, message, delay = "unavailable", f"Resposta HTTP {error.code}. Nova tentativa em 60 segundos.", 60
     except (ValueError, UnicodeError):
-        status, message, delay = "delayed", "Resposta inv�lida ou antiga. Hist�rico preservado; nova consulta em 60 segundos.", 60
+        status, message, delay = "delayed", "Resposta inválida ou antiga. Histórico preservado; nova consulta em 60 segundos.", 60
     except (OSError, TimeoutError):
-        status, message, delay = "unavailable", "Falha de conex�o com a Blitz. Nova tentativa em 60 segundos.", 60
+        status, message, delay = "unavailable", "Falha de conexão com a Blitz. Nova tentativa em 60 segundos.", 60
     feed.publish(status=status, message=message, checked_at=int(now * 1000),
                  next_check=int((clock() + delay) * 1000) if delay is not None else 0, **changes)
     return delay
@@ -170,7 +170,7 @@ def main():
     try:
         server = ThreadingHTTPServer(("127.0.0.1", args.port), handler_for(feed))
     except OSError as error:
-        raise SystemExit(f"N�o foi poss�vel abrir a porta {args.port}: {error}. Feche outra inst�ncia ou use --port 8766.")
+        raise SystemExit(f"Não foi possível abrir a porta {args.port}: {error}. Feche outra instância ou use --port 8766.")
     server.daemon_threads = True
     threading.Thread(target=collector, args=(feed, stop), daemon=True).start()
     url = f"http://127.0.0.1:{args.port}"

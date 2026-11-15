@@ -1,8 +1,8 @@
 "use strict";
 
-/* One For All - somente API oficial Blitz.
-   Um GET por ciclo (p�gina 1, at� 100 rodadas).
-   N�o utiliza dados do Hist�ricos Blaze nem importa��o manual. */
+/* One For All — somente API oficial Blitz.
+   Um GET por ciclo (página 1, até 100 rodadas).
+   Não utiliza dados do Históricos Blaze nem importação manual. */
 const API = "https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1";
 const TIMEZONE = "America/Sao_Paulo";
 const POLL_MS = 120000;
@@ -27,10 +27,10 @@ const shortTime = new Intl.DateTimeFormat("pt-BR", {
 });
 const labels = ["Branco", "Amarelo", "Preto"];
 
-let latest = [];           // S� recebe resultado de consulta oficial bem-sucedida
-let archive = [];          // Tamb�m exclusivamente oficial, recuperado ap�s uma consulta v�lida
+let latest = [];           // Só recebe resultado de consulta oficial bem-sucedida
+let archive = [];          // Também exclusivamente oficial, recuperado após uma consulta válida
 let state = "loading";     // loading, live, delayed, unavailable, rate-limited, denied
-let reason = "Conectando � API oficial...";
+let reason = "Conectando à API oficial...";
 let inFlight = false;
 let everConnected = false;
 let lastFetchedAt = 0;
@@ -49,8 +49,8 @@ function formatHour(timestamp) {
   return shortTime.format(new Date(timestamp));
 }
 function buildApiUrl() {
-  // O endpoint fornecido pelo usu�rio retorna as rodadas recentes sem filtro por datas.
-  // N�o adicionar startDate, endDate ou page; validar os registros e sua idade na resposta.
+  // O endpoint fornecido pelo usuário retorna as rodadas recentes sem filtro por datas.
+  // Não adicionar startDate, endDate ou page; validar os registros e sua idade na resposta.
   return API + "?";
 }
 function validateRound(raw, now = Date.now()) {
@@ -68,7 +68,7 @@ function validateRound(raw, now = Date.now()) {
 function normalizeOfficial(body, now = Date.now()) {
   const rows = Array.isArray(body?.records) ? body.records :
     (Array.isArray(body?.data?.records) ? body.data.records : null);
-  if (!rows) throw new Error("A API n�o retornou a lista esperada de rodadas.");
+  if (!rows) throw new Error("A API não retornou a lista esperada de rodadas.");
   if (!rows.length) throw new Error("A API retornou uma lista vazia.");
   const unique = new Map();
   for (const raw of rows.slice(0,100)) {
@@ -77,11 +77,11 @@ function normalizeOfficial(body, now = Date.now()) {
   }
   const results = [...unique.values()].sort((a,b)=>a.t-b.t);
   const minValid=Math.max(1,Math.ceil(Math.min(rows.length,100)*0.8));
-  if (results.length < minValid) throw new Error("A resposta da API veio incompleta ou possui dados inv�lidos.");
+  if (results.length < minValid) throw new Error("A resposta da API veio incompleta ou possui dados inválidos.");
   const newest = results[results.length-1];
   if (now-newest.t > MAX_SERVER_AGE_MS) {
-    throw new Error("A API respondeu, mas os resultados est�o antigos (�ltima rodada " +
-      formatTime(newest.t) + "). Nenhum dado ser� apresentado como ao vivo.");
+    throw new Error("A API respondeu, mas os resultados estão antigos (última rodada " +
+      formatTime(newest.t) + "). Nenhum dado será apresentado como ao vivo.");
   }
   return results;
 }
@@ -108,7 +108,7 @@ function mergeOfficial(newRows, now = Date.now()) {
     localStorage.setItem(OFFICIAL_STORAGE,JSON.stringify({
       source:"Blitz API oficial",saved_at:new Date(now).toISOString(),records:archive
     }));
-  } catch (_) { /* armazenamento opcional; a p�gina continua exibindo a coleta atual */ }
+  } catch (_) { /* armazenamento opcional; a página continua exibindo a coleta atual */ }
 }
 function hourResults(now = Date.now()) {
   const records = archive.filter(r => r.t >= FIRST_TEST_TIME && r.t <= now+120000)
@@ -202,14 +202,14 @@ function whiteIntervalStats(list) {
 function renderArchive() {
   const sum=whiteIntervalStats(archive);
   $("archiveCount").textContent=archive.length+" / "+MAX_ARCHIVE;
-  $("archiveWhites").textContent=archive.length?String(sum.whites):"-";
-  $("archiveMeanGap").textContent=sum.mean===null?"-":sum.mean.toFixed(1).replace(".",",")+" rodadas";
-  $("archiveMaxGap").textContent=sum.max===null?"-":sum.max+" rodadas";
+  $("archiveWhites").textContent=archive.length?String(sum.whites):"—";
+  $("archiveMeanGap").textContent=sum.mean===null?"—":sum.mean.toFixed(1).replace(".",",")+" rodadas";
+  $("archiveMaxGap").textContent=sum.max===null?"—":sum.max+" rodadas";
   if (!archive.length) {
-    $("archiveDescription").textContent="Os resultados oficiais s� s�o armazenados ap�s uma consulta v�lida.";
-    $("archiveRounds").textContent="Nenhum hist�rico oficial dispon�vel neste navegador.";
+    $("archiveDescription").textContent="Os resultados oficiais só são armazenados após uma consulta válida.";
+    $("archiveRounds").textContent="Nenhum histórico oficial disponível neste navegador.";
   } else {
-    $("archiveDescription").textContent="Hist�rico neste navegador, n�o ao vivo � �ltima "+
+    $("archiveDescription").textContent="Histórico neste navegador, não ao vivo · última "+
       formatTime(archive[archive.length-1].t)+".";
     $("archiveRounds").innerHTML=[...archive].reverse().map(roundMarkup).join("");
   }
@@ -228,10 +228,10 @@ function renderStatus() {
   const dot=$("statusDot"),badge=$("statusBadge"),notice=$("notice");
   dot.className="status-dot "+state;
   badge.textContent={
-    loading:"Conectando...",live:"Conectado � Blitz",delayed:"Dados atrasados",
-    unavailable:"Conex�o indispon�vel", "rate-limited":"Aguardando libera��o",
-    denied:"Acesso n�o autorizado"
-  }[state] || "Indispon�vel";
+    loading:"Conectando...",live:"Conectado à Blitz",delayed:"Dados atrasados",
+    unavailable:"Conexão indisponível", "rate-limited":"Aguardando liberação",
+    denied:"Acesso não autorizado"
+  }[state] || "Indisponível";
   notice.className="notice "+(["live"].includes(state)?"success":"loading"===state?"neutral":"warn");
   notice.textContent=reason;
   renderLastResult();
@@ -241,27 +241,27 @@ function renderLastResult() {
   const el=$("lastResult"),detail=$("lastResultDetails");
   if (!latest.length) {
     el.textContent="Sem resultados atuais";
-    detail.textContent="N�o exibimos dados de fontes externas nem registros antigos.";
+    detail.textContent="Não exibimos dados de fontes externas nem registros antigos.";
     return;
   }
   const r=latest[0],age=Date.now()-r.t;
   el.textContent=formatTime(r.t);
-  detail.textContent="�ltimo n�mero: "+r.roll+" � "+labels[r.c]+
-    (age>FRESH_MS?" � Aten��o: resultados desatualizados.":" � Fonte oficial.");
+  detail.textContent="Último número: "+r.roll+" · "+labels[r.c]+
+    (age>FRESH_MS?" · Atenção: resultados desatualizados.":" · Fonte oficial.");
 }
 function renderSchedule() {
   const el=$("nextUpdate"),button=$("refreshBtn");
-  $("lastChecked").textContent=lastRequestedAt?formatTime(lastRequestedAt):"Ainda n�o realizada";
+  $("lastChecked").textContent=lastRequestedAt?formatTime(lastRequestedAt):"Ainda não realizada";
   if (LOCAL_STREAM) {
     button.hidden=true;
     const seconds=Math.max(0,Math.ceil((nextRequestAt-Date.now())/1000));
     el.textContent=state==="denied" ? "Coleta suspensa pela resposta da Blitz." :
-      state==="unavailable" ? "Aguardando conex�o; reconex�o autom�tica ativa." :
-      "P�gina conectada ao Python � pr�xima consulta em "+seconds+"s. Novos resultados aparecem automaticamente.";
+      state==="unavailable" ? "Aguardando conexão; reconexão automática ativa." :
+      "Página conectada ao Python · próxima consulta em "+seconds+"s. Novos resultados aparecem automaticamente.";
     return;
   }
   if (inFlight) {
-    el.textContent="Recebendo a primeira p�gina (at� 100 rodadas)...";
+    el.textContent="Recebendo a primeira página (até 100 rodadas)...";
     button.disabled=true;
     button.textContent="Atualizando...";
     return;
@@ -269,13 +269,13 @@ function renderSchedule() {
   if (stopAutomatic) {
     el.textContent=state==="denied" ?
       "Servidor recusou a consulta. A coleta foi suspensa." :
-      "N�o foi poss�vel ler a resposta (CORS ou rede). Coleta suspensa para evitar repeti��o.";
+      "Não foi possível ler a resposta (CORS ou rede). Coleta suspensa para evitar repetição.";
     button.disabled=true;
-    button.textContent=state==="denied"?"Acesso recusado":"N�o foi poss�vel conectar";
+    button.textContent=state==="denied"?"Acesso recusado":"Não foi possível conectar";
     return;
   }
   if (Date.now()<blockUntil) {
-    el.textContent="Nova tentativa n�o antes de "+formatTime(blockUntil)+".";
+    el.textContent="Nova tentativa não antes de "+formatTime(blockUntil)+".";
     button.disabled=true;
     button.textContent="Aguardando intervalo";
     return;
@@ -285,20 +285,20 @@ function renderSchedule() {
   const remaining=Math.max(0,nextRequestAt-Date.now());
   const seconds=Math.ceil(remaining/1000);
   el.textContent=everConnected&&remaining>0?
-    "Pr�xima consulta em "+Math.floor(seconds/60)+"min "+String(seconds%60).padStart(2,"0")+"s � aba ativa.":
-    "Atualiza��o autom�tica aproximadamente a cada 2 minutos, com a aba ativa.";
+    "Próxima consulta em "+Math.floor(seconds/60)+"min "+String(seconds%60).padStart(2,"0")+"s · aba ativa.":
+    "Atualização automática aproximadamente a cada 2 minutos, com a aba ativa.";
 }
 function roundMarkup(row) {
   return '<span class="round c'+row.c+'" title="'+formatTime(row.t)+
-    ' � '+labels[row.c]+'" aria-label="'+row.roll+' '+labels[row.c]+' �s '+
+    ' · '+labels[row.c]+'" aria-label="'+row.roll+' '+labels[row.c]+' às '+
     formatTime(row.t)+'">'+row.roll+'</span>';
 }
 function renderRounds() {
   const container=$("rounds");
   if (!latest.length || Date.now()-latest[0].t>FRESH_MS) {
     container.className="rounds empty-rounds";
-    container.textContent=latest.length?"A �ltima amostra ficou antiga. Consulte o hist�rico salvo abaixo.":
-      "Nenhum resultado oficial dispon�vel no momento.";
+    container.textContent=latest.length?"A última amostra ficou antiga. Consulte o histórico salvo abaixo.":
+      "Nenhum resultado oficial disponível no momento.";
     return;
   }
   container.className="rounds";
@@ -307,17 +307,17 @@ function renderRounds() {
 function renderStatistics() {
   const counts=[0,0,0];
   latest.forEach(r=>{counts[r.c]++;});
-  $("sampleTotal").textContent=latest.length?String(latest.length):"-";
+  $("sampleTotal").textContent=latest.length?String(latest.length):"—";
   ["White","Yellow","Black"].forEach((name,i)=>{
-    $("count"+name).textContent=latest.length?String(counts[i]):"-";
+    $("count"+name).textContent=latest.length?String(counts[i]):"—";
     $("pct"+name).textContent=latest.length?
       (counts[i]*100/latest.length).toFixed(1).replace(".",",")+"% das rodadas":"Na amostra";
     const bar=$("bar"+name);
     if (bar?.style) bar.style.width=(latest.length?counts[i]*100/latest.length:0)+"%";
   });
   $("sampleDescription").textContent=latest.length?
-    latest.length+" rodadas oficiais � �ltima: "+formatTime(latest[0].t)+
-    (Date.now()-latest[0].t<=FRESH_MS?" � Amostra recente.":" � AMOSTRA ANTIGA, n�o � ao vivo."):
+    latest.length+" rodadas oficiais · Última: "+formatTime(latest[0].t)+
+    (Date.now()-latest[0].t<=FRESH_MS?" · Amostra recente.":" · AMOSTRA ANTIGA, não é ao vivo."):
     "Aguardando resposta da API oficial.";
 }
 function renderExperiments() {
@@ -328,7 +328,7 @@ function renderExperiments() {
   $("signalHits").textContent=String(hits);
   $("signalMisses").textContent=String(completed.length-hits);
   $("signalRate").textContent=completed.length?
-    (100*hits/completed.length).toFixed(1).replace(".",",")+"%":"-";
+    (100*hits/completed.length).toFixed(1).replace(".",",")+"%":"—";
   const strings={
     "acerto":"Branco encontrado","falha":"Sem branco","pendente":"Acompanhando",
     "observando":"Aguardando par","sem-par":"Sem par","incompleto":"Dados incompletos"
@@ -336,9 +336,9 @@ function renderExperiments() {
   $("historyRows").innerHTML=outcomes.slice(0,24).map(x=>{
     const attempts=x.status==="acerto" ? x.attempt+"/11" :
       x.status==="falha" ? "11/11":
-      x.status==="pendente" ? x.examined+"/11":"-";
+      x.status==="pendente" ? x.examined+"/11":"—";
     return '<tr><td>'+formatTime(x.hour)+'</td><td>'+
-      (x.trigger===null?"-":formatHour(x.trigger))+'</td><td><span class="result-status '+
+      (x.trigger===null?"—":formatHour(x.trigger))+'</td><td><span class="result-status '+
       x.status+'">'+strings[x.status]+'</span></td><td>'+attempts+'</td></tr>';
   }).join("")||'<tr><td class="empty" colspan="4">Sem rodadas oficiais suficientes para avaliar uma hora.</td></tr>';
 }
@@ -364,8 +364,8 @@ async function updateLive() {
   if (lastRequestedAt && Date.now()-lastRequestedAt<POLL_MS) return;
   if (typeof document !== "undefined" && document.hidden) return;
   inFlight=true;
-  setStatus("loading","Consultando o endere�o oficial da Blitz sem par�metros...");
-  showConnectionDetail("Requisi��o iniciada: " + formatTime(Date.now()) + ". Aguardando resposta da API.");
+  setStatus("loading","Consultando o endereço oficial da Blitz sem parâmetros...");
+  showConnectionDetail("Requisição iniciada: " + formatTime(Date.now()) + ". Aguardando resposta da API.");
   let controller=null,timeout=null;
   try {
     controller=typeof AbortController!=="undefined" ? new AbortController():null;
@@ -385,13 +385,13 @@ async function updateLive() {
     if ([401,403,451].includes(response.status)) {
       stopAutomatic=true;
       setStatus("denied","A Blitz respondeu HTTP "+response.status+
-        ". A coleta autom�tica foi suspensa; n�o tentaremos contornar esse bloqueio.");
+        ". A coleta automática foi suspensa; não tentaremos contornar esse bloqueio.");
       return;
     }
     if (!response.ok) {
       blockUntil=Date.now()+10*60000;
       setStatus("unavailable","A API respondeu HTTP "+response.status+
-        ". Tentaremos novamente ap�s um intervalo.");
+        ". Tentaremos novamente após um intervalo.");
       return;
     }
     const body=await response.json();
@@ -405,27 +405,27 @@ async function updateLive() {
     const age=Date.now()-latest[0].t;
     setStatus(age<=FRESH_MS?"live":"delayed",
       age<=FRESH_MS?
-        "Conex�o direta com a API oficial confirmada. "+latest.length+
-        " rodadas recebidas; atualiza��o autom�tica ativa.":
-        "A API respondeu, mas a �ltima rodada tem mais de 5 minutos. N�o s�o resultados em tempo real.");
+        "Conexão direta com a API oficial confirmada. "+latest.length+
+        " rodadas recebidas; atualização automática ativa.":
+        "A API respondeu, mas a última rodada tem mais de 5 minutos. Não são resultados em tempo real.");
     render();
   } catch (error) {
     if (error instanceof SyntaxError) {
       blockUntil=Date.now()+10*60000;
-      setStatus("unavailable","A API n�o retornou JSON v�lido. Nenhum dado foi substitu�do.");
-    } else if (error?.message?.includes("resultados est�o antigos") ||
+      setStatus("unavailable","A API não retornou JSON válido. Nenhum dado foi substituído.");
+    } else if (error?.message?.includes("resultados estão antigos") ||
                error?.message?.includes("incompleta") ||
                error?.message?.includes("lista")) {
       blockUntil=Date.now()+10*60000;
       setStatus("delayed",error.message);
     } else {
-      // Sem resposta HTTP acess�vel n�o � poss�vel distinguir CORS de rede.
-      showConnectionDetail("O navegador n�o disponibilizou um status HTTP. Isso pode indicar CORS " +
-        "ou falha de rede. O fato de a mesma URL abrir em outra aba n�o autoriza a leitura pelo GitHub Pages.");
+      // Sem resposta HTTP acessível não é possível distinguir CORS de rede.
+      showConnectionDetail("O navegador não disponibilizou um status HTTP. Isso pode indicar CORS " +
+        "ou falha de rede. O fato de a mesma URL abrir em outra aba não autoriza a leitura pelo GitHub Pages.");
       stopAutomatic=true;
       setStatus("unavailable",
-        "O navegador n�o conseguiu ler a resposta da Blitz. Pode ser CORS ou falha de rede. "+
-        "A consulta autom�tica foi suspensa para n�o repetir requisi��es bloqueadas.");
+        "O navegador não conseguiu ler a resposta da Blitz. Pode ser CORS ou falha de rede. "+
+        "A consulta automática foi suspensa para não repetir requisições bloqueadas.");
     }
   } finally {
     if (timeout!==null) clearTimeout(timeout);
@@ -467,7 +467,7 @@ setInterval(()=>{
   if (everConnected && latest.length) {
     const age=Date.now()-latest[0].t;
     if (age>FRESH_MS && state==="live") {
-      setStatus("delayed","A �ltima rodada recebida j� est� desatualizada. Aguardando nova resposta oficial.");
+      setStatus("delayed","A última rodada recebida já está desatualizada. Aguardando nova resposta oficial.");
     }
   }
   renderClock();
@@ -477,7 +477,7 @@ setInterval(()=>{
   renderStatistics();
 },30000);
 function receiveSnapshot(payload) {
-  if (!payload || typeof payload !== "object") throw new Error("Mensagem local inv�lida.");
+  if (!payload || typeof payload !== "object") throw new Error("Mensagem local inválida.");
   if (payload.status === "live") {
     const parsed=normalizeOfficial({records:payload.records},Date.now());
     if (!everConnected) archive=loadOfficialArchive(Date.now());
@@ -491,27 +491,27 @@ function receiveSnapshot(payload) {
   let nextState=allowed.includes(payload.status)?payload.status:"unavailable";
   if(nextState==="live" && latest.length && Date.now()-latest[0].t>FRESH_MS) nextState="delayed";
   setStatus(nextState,String(payload.message||"Aguardando resultados do Python."));
-  showConnectionDetail("Atualiza��o autom�tica recebida do servidor Python local.");
+  showConnectionDetail("Atualização automática recebida do servidor Python local.");
   render();
 }
 function startLocalStream() {
   if (liveStream) return;
-  $("requestedUrl").textContent="/events � Python consulta a API da Blitz a cada 15 segundos";
+  $("requestedUrl").textContent="/events · Python consulta a API da Blitz a cada 15 segundos";
   if (typeof EventSource === "undefined") {
-    setStatus("unavailable","Este navegador n�o suporta a conex�o autom�tica. Use Chrome ou Edge atualizado.");
+    setStatus("unavailable","Este navegador não suporta a conexão automática. Use Chrome ou Edge atualizado.");
     return;
   }
   liveStream=new EventSource("/events");
   liveStream.addEventListener("snapshot",event=>{
     try { receiveSnapshot(JSON.parse(event.data)); }
-    catch (_) { setStatus("delayed","Mensagem recebida sem resultados atuais v�lidos. Hist�rico preservado."); }
+    catch (_) { setStatus("delayed","Mensagem recebida sem resultados atuais válidos. Histórico preservado."); }
   });
   liveStream.onerror=()=>{
-    setStatus("unavailable","Conex�o com o Python interrompida. Reconectando automaticamente; mantenha INICIAR.bat aberto.");
+    setStatus("unavailable","Conexão com o Python interrompida. Reconectando automaticamente; mantenha INICIAR.bat aberto.");
   };
 }
 render();
-logEvent("Painel iniciado; aguardando consulta � API oficial.","info");
+logEvent("Painel iniciado; aguardando consulta à API oficial.","info");
 if (typeof window !== "undefined") {
   if (LOCAL_STREAM) startLocalStream();
   else updateLive();
