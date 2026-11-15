@@ -206,3 +206,13 @@ test("Atualização sem dados atuais não apresenta grade antiga como ao vivo",(
   ctx.renderRounds();
   assert.match(document.getElementById("rounds").textContent,/ficou antiga/);
 });
+
+
+test("Falha sem código HTTP não é descrita como recusa confirmada pelo servidor",async()=>{
+  const {ctx,document}=harness();
+  ctx.fetch=async()=>{throw new TypeError("Failed to fetch")};
+  await ctx.updateLive();
+  assert.match(document.getElementById("nextUpdate").textContent,/CORS ou rede/);
+  assert.doesNotMatch(document.getElementById("nextUpdate").textContent,/servidor não autorizou/i);
+  assert.equal(document.getElementById("refreshBtn").textContent,"Não foi possível conectar");
+});
