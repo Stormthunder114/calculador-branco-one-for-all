@@ -10,7 +10,8 @@ const CONTINUITY_MS = 150000;
 const FRESH_MS = 300000;
 const MAX_SERVER_AGE_MS = 600000;
 const HOUR_MS = 3600000;
-const MAX_ARCHIVE = 4000;
+const MAX_ROUND_AGE_MS = 24 * HOUR_MS;
+const MAX_ARCHIVE = 300;
 const OFFICIAL_STORAGE = "ofa_apenas_blitz_live_v1";
 const FIRST_TEST_TIME = Date.parse("2026-11-15T04:00:00.000Z");
 const $ = id => document.getElementById(id);
@@ -35,6 +36,8 @@ let nextRequestAt = 0;
 let blockUntil = 0;
 let stopAutomatic = false;
 let pollingHandle = null;
+let events = [];
+const localClock = new Intl.DateTimeFormat("pt-BR", {timeZone:TIMEZONE,hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"});
 
 function formatTime(timestamp) {
   return clockFormat.format(new Date(timestamp));
@@ -56,7 +59,7 @@ function validateRound(raw, now = Date.now()) {
   const sourceTime = String(raw.created_at || "");
   if (!/(Z|[+-]\d\d:\d\d)$/i.test(sourceTime)) return null;
   const t = Date.parse(sourceTime);
-  if (!Number.isFinite(t) || t > now+120000 || t < now-3*3600000-120000) return null;
+  if (!Number.isFinite(t) || t > now+120000 || t < now-MAX_ROUND_AGE_MS-120000) return null;
   return {id:String(raw.id),t,roll,c:color};
 }
 function normalizeOfficial(body, now = Date.now()) {
@@ -70,7 +73,8 @@ function normalizeOfficial(body, now = Date.now()) {
     if (result) unique.set(result.id,result);
   }
   const results = [...unique.values()].sort((a,b)=>a.t-b.t);
-  if (results.length < 80) throw new Error("A resposta da API veio incompleta ou possui dados inválidos.");
+  const minValid=Math.max(1,Math.ceil(Math.min(rows.length,100)*0.8));
+  if (results.length < minValid) throw new Error("A resposta da API veio incompleta ou possui dados inválidos.");
   const newest = results[results.length-1];
   if (now-newest.t > MAX_SERVER_AGE_MS) {
     throw new Error("A API respondeu, mas os resultados estão antigos (última rodada " +
@@ -160,11 +164,59 @@ function hourResults(now = Date.now()) {
   }
   return outcomes.sort((a,b)=>b.hour-a.hour);
 }
+function renderClock() {
+  if ($("liveClock")) $("liveClock").textContent=localClock.format(new Date())+" BRT";
+}
+function safeHTML(x) {
+  return String(x).replace(/[&<>"']/g,k=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[k]));
+}
+function logEvent(message,type="info") {
+  if (events[0]?.message===message) return;
+  events.unshift({time:Date.now(),message,type});
+  events=events.slice(0,8);
+  const el=$("eventList");
+  if (el) el.innerHTML=events.map(e=>'<div class="log-entry '+safeHTML(e.type)+'"><span>'+
+    formatTime(e.time)+'</span><p>'+safeHTML(e.message)+'</p></div>').join("");
+}
+function whiteIntervalStats(list) {
+  const data=[...list].sort((a,b)=>a.t-b.t),positions=[],gaps=[];
+  data.forEach((x,i)=>{if(x.c===0)positions.push(i)});
+  for(let k=1;k<positions.length;k++){
+    const a=positions[k-1],b=positions[k];
+    let complete=true;
+    for(let j=a+1;j<=b;j++){
+      const interval=data[j].t-data[j-1].t;
+      if(interval>CONTINUITY_MS||interval<=0){complete=false;break}
+    }
+    if(complete)gaps.push(b-a-1);
+  }
+  return {
+    whites:positions.length, intervals:gaps.length,
+    mean:gaps.length?gaps.reduce((a,b)=>a+b,0)/gaps.length:null,
+    max:gaps.length?Math.max(...gaps):null
+  };
+}
+function renderArchive() {
+  const sum=whiteIntervalStats(archive);
+  $("archiveCount").textContent=archive.length+" / "+MAX_ARCHIVE;
+  $("archiveWhites").textContent=archive.length?String(sum.whites):"—";
+  $("archiveMeanGap").textContent=sum.mean===null?"—":sum.mean.toFixed(1).replace(".",",")+" rodadas";
+  $("archiveMaxGap").textContent=sum.max===null?"—":sum.max+" rodadas";
+  if (!archive.length) {
+    $("archiveDescription").textContent="Os resultados oficiais só são armazenados após uma consulta válida.";
+    $("archiveRounds").textContent="Nenhum histórico oficial disponível neste navegador.";
+  } else {
+    $("archiveDescription").textContent="Histórico neste navegador, não ao vivo · última "+
+      formatTime(archive[archive.length-1].t)+".";
+    $("archiveRounds").innerHTML=[...archive].reverse().map(roundMarkup).join("");
+  }
+}
 function showConnectionDetail(text) {
   const field = $("requestInfo");
   if (field) field.textContent = text;
 }
 function setStatus(type,message) {
+  if (state!==type || reason!==message) logEvent(message,type);
   state=type;
   reason=message;
   renderStatus();
@@ -196,6 +248,7 @@ function renderLastResult() {
 }
 function renderSchedule() {
   const el=$("nextUpdate"),button=$("refreshBtn");
+  $("lastChecked").textContent=lastRequestedAt?formatTime(lastRequestedAt):"Ainda não realizada";
   if (inFlight) {
     el.textContent="Recebendo a primeira página (até 100 rodadas)...";
     button.disabled=true;
@@ -216,9 +269,11 @@ function renderSchedule() {
   }
   button.disabled=false;
   button.textContent="Atualizar agora";
-  el.textContent=everConnected ?
-    "Atualização automática aproximadamente a cada 2 minutos, com a aba ativa.":
-    "A conexão será verificada automaticamente.";
+  const remaining=Math.max(0,nextRequestAt-Date.now());
+  const seconds=Math.ceil(remaining/1000);
+  el.textContent=everConnected&&remaining>0?
+    "Próxima consulta em "+Math.floor(seconds/60)+"min "+String(seconds%60).padStart(2,"0")+"s · aba ativa.":
+    "Atualização automática aproximadamente a cada 2 minutos, com a aba ativa.";
 }
 function roundMarkup(row) {
   return '<span class="round c'+row.c+'" title="'+formatTime(row.t)+
@@ -227,9 +282,10 @@ function roundMarkup(row) {
 }
 function renderRounds() {
   const container=$("rounds");
-  if (!latest.length) {
+  if (!latest.length || Date.now()-latest[0].t>FRESH_MS) {
     container.className="rounds empty-rounds";
-    container.textContent="Nenhum resultado oficial disponível no momento.";
+    container.textContent=latest.length?"A última amostra ficou antiga. Consulte o histórico salvo abaixo.":
+      "Nenhum resultado oficial disponível no momento.";
     return;
   }
   container.className="rounds";
@@ -243,10 +299,12 @@ function renderStatistics() {
     $("count"+name).textContent=latest.length?String(counts[i]):"—";
     $("pct"+name).textContent=latest.length?
       (counts[i]*100/latest.length).toFixed(1).replace(".",",")+"% das rodadas":"Na amostra";
+    const bar=$("bar"+name);
+    if (bar?.style) bar.style.width=(latest.length?counts[i]*100/latest.length:0)+"%";
   });
   $("sampleDescription").textContent=latest.length?
-    "Página 1 · "+latest.length+" rodadas da API oficial · "+
-    "Última: "+formatTime(latest[0].t)+" · Apenas dados recebidos diretamente.":
+    latest.length+" rodadas oficiais · Última: "+formatTime(latest[0].t)+
+    (Date.now()-latest[0].t<=FRESH_MS?" · Amostra recente.":" · AMOSTRA ANTIGA, não é ao vivo."):
     "Aguardando resposta da API oficial.";
 }
 function renderExperiments() {
@@ -272,8 +330,10 @@ function renderExperiments() {
   }).join("")||'<tr><td class="empty" colspan="4">Sem rodadas oficiais suficientes para avaliar uma hora.</td></tr>';
 }
 function render() {
+  renderClock();
   renderRounds();
   renderStatistics();
+  renderArchive();
   renderExperiments();
   renderStatus();
 }
@@ -395,8 +455,12 @@ setInterval(()=>{
       setStatus("delayed","A última rodada recebida já está desatualizada. Aguardando nova resposta oficial.");
     }
   }
+  renderClock();
   renderLastResult();
   renderSchedule();
+  renderRounds();
+  renderStatistics();
 },30000);
 render();
+logEvent("Painel iniciado; aguardando consulta à API oficial.","info");
 if (typeof window !== "undefined") updateLive();

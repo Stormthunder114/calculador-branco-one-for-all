@@ -168,3 +168,41 @@ test("Falha sem status HTTP informa CORS ou rede, não inventa um código",async
   assert.match(reason,/falha de rede/);
   assert.doesNotMatch(reason,/HTTP (403|429|451)/);
 });
+
+
+test("Histórico acumula no máximo 300 registros oficiais, sem fontes alternativas",()=>{
+  const {ctx,store,now}=harness();
+  const data=Array.from({length:370},(_,i)=>({
+    id:"history"+i,t:now-370000+i*1000,
+    c:i%15===0?0:i%15<=7?1:2,roll:i%15
+  }));
+  ctx.mergeOfficial(data,now);
+  const saved=JSON.parse(store.get("ofa_apenas_blitz_live_v1"));
+  assert.equal(saved.records.length,300);
+  assert.equal(saved.source,"Blitz API oficial");
+  assert.equal(ctx.loadOfficialArchive(now).length,300);
+});
+test("A API pode responder menos de 100 resultados e ainda ser válida",()=>{
+  const {ctx,now}=harness();
+  assert.equal(ctx.normalizeOfficial({records:rows(now,21)},now).length,21);
+});
+test("Brancos: intervalo calculado apenas entre rodadas sem lacunas",()=>{
+  const {ctx}=harness();
+  const results=singleSequence(START,[0,1,2,0,2,0]);
+  let sum=ctx.whiteIntervalStats(results);
+  assert.equal(sum.whites,3);
+  assert.equal(sum.intervals,2);
+  assert.equal(sum.max,2);
+  assert.equal(sum.mean,1.5);
+  results[4].t+=600000;
+  results[5].t+=600000;
+  sum=ctx.whiteIntervalStats(results);
+  assert.equal(sum.intervals,1);
+});
+test("Atualização sem dados atuais não apresenta grade antiga como ao vivo",()=>{
+  const {ctx,document,now}=harness();
+  const old=singleSequence(START,[0,1,2]);
+  ctx.mergeOfficial(old,now);
+  ctx.renderRounds();
+  assert.match(document.getElementById("rounds").textContent,/ficou antiga/);
+});
