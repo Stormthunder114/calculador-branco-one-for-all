@@ -66,12 +66,9 @@ function mergeRecords(input) {
 function officialApiLink() {
   const now = new Date();
   const start = new Date(now.getTime() - 2 * 86400000);
-  const query = new URLSearchParams({
-    startDate: start.toISOString(),
-    endDate: now.toISOString(),
-    page: "1"
-  });
-  return OFFICIAL_URL + "?" + query.toString();
+  return OFFICIAL_URL +
+    "?startDate=" + encodeURIComponent(start.toISOString()) +
+    "&endDate=" + encodeURIComponent(now.toISOString()) + "&page=1";
 }
 function switchSource(mode) {
   if (!["official", "historicos"].includes(mode)) return;
@@ -352,6 +349,11 @@ function render() {
   refreshCooldown();
 }
 function refreshCooldown() {
+  if (sourceMode === "official") {
+    $("updateBtn").disabled = true;
+    $("updateBtn").textContent = "Use os dois passos da API oficial acima";
+    return;
+  }
   const remaining = nextAllowed - Date.now();
   $("updateBtn").disabled = updating || remaining > 0;
   if (!updating) {
