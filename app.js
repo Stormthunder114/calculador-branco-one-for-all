@@ -292,12 +292,25 @@ async function updateData() {
   $("updateBtn").textContent = "Carregando histórico...";
   $("updateBtn").disabled = true;
   try {
-    const response = await fetch("./data/blitz-historico-publico.json?rev=" + Date.now(), {
-      method: "GET", cache: "no-store", credentials: "omit"
-    });
-    if (response.status === 404) throw new Error("A primeira coleta ainda não foi publicada. Tente novamente mais tarde.");
-    if (!response.ok) throw new Error("O arquivo de resultados respondeu HTTP " + response.status + ".");
-    const feed = await response.json();
+    const feeds = [
+      "https://raw.githubusercontent.com/Stormthunder114/calculador-branco-one-for-all/main/data/blitz-historico-publico.json",
+      "./data/blitz-historico-publico.json"
+    ];
+    let feed = null;
+    for (const base of feeds) {
+      try {
+        const response = await fetch(base + "?rev=" + Date.now(), {
+          method: "GET", cache: "no-store", credentials: "omit"
+        });
+        if (!response.ok) continue;
+        const candidate = await response.json();
+        if (candidate?.source === "Históricos Blaze" && Array.isArray(candidate.records)) {
+          feed = candidate;
+          break;
+        }
+      } catch (_) { /* tenta segunda origem, sem repetir contato com o Históricos Blaze */ }
+    }
+    if (!feed) throw new Error("Ainda não foi possível carregar o histórico publicado pelo GitHub.");
     if (!feed || feed.source !== "Históricos Blaze" || !Array.isArray(feed.records)) {
       throw new Error("O arquivo de histórico está em formato inesperado.");
     }
