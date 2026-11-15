@@ -8,7 +8,7 @@ const CUTOFF = Date.parse(CUTOFF_ISO);
 const HOUR = 3600000;
 const MAX_GAP = 150000;
 const COOLDOWN = 10 * 60000;
-const STORE = "ofa_blitz_records_v2";
+const STORE = "ofa_blitz_official_records_v1";
 const MANUAL_STORE = "ofa_blitz_treino_v2";
 const LIMIT_STORE = 7500;
 const $ = (id) => document.getElementById(id);
@@ -22,7 +22,7 @@ const hourFormatter = new Intl.DateTimeFormat("pt-BR", {
 let records = readStorage(STORE, []);
 let training = readStorage(MANUAL_STORE, []);
 let updating = false;
-let nextAllowed = Number(localStorage.getItem("ofa_feed_next_allowed_v3") || 0);
+let nextAllowed = Number(localStorage.getItem("ofa_official_next_poll_v1") || 0);
 
 function readStorage(key, fallback) {
   try {
@@ -287,50 +287,67 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function updateData() {
   if (updating || Date.now() < nextAllowed) return;
   updating = true;
-  nextAllowed = Date.now() + 2 * 60000; // arquivo público do próprio site, não consulta a fonte externa
-  localStorage.setItem("ofa_feed_next_allowed_v3", String(nextAllowed));
-  $("updateBtn").textContent = "Carregando histórico...";
+  nextAllowed = Date.now() + 2 * 60000; // Só atualiza o arquivo do próprio GitHub
+  localStorage.setItem("ofa_official_next_poll_v1", String(nextAllowed));
+  $("updateBtn").textContent = "Buscando 100 resultados oficiais...";
   $("updateBtn").disabled = true;
   try {
-    const feeds = [
-      "https://raw.githubusercontent.com/Stormthunder114/calculador-branco-one-for-all/main/data/blitz-historico-publico.json",
-      "./data/blitz-historico-publico.json"
+    const urls = [
+      "https://raw.githubusercontent.com/Stormthunder114/calculador-branco-one-for-all/main/data/blitz-oficial-100.json",
+      "./data/blitz-oficial-100.json"
     ];
     let feed = null;
-    for (const base of feeds) {
+    for (const base of urls) {
       try {
-        const response = await fetch(base + "?rev=" + Date.now(), {
+        const response = await fetch(base + "?t=" + Date.now(), {
           method: "GET", cache: "no-store", credentials: "omit"
         });
         if (!response.ok) continue;
-        const candidate = await response.json();
-        if (candidate?.source === "Históricos Blaze" && Array.isArray(candidate.records)) {
-          feed = candidate;
-          break;
+        const data = await response.json();
+        if (data && data.source === "Blitz API oficial" && Array.isArray(data.records) &&
+            Array.isArray(data.latest_100) && data.latest_100.length > 0) {
+          feed = data; break;
         }
-      } catch (_) { /* tenta segunda origem, sem repetir contato com o Históricos Blaze */ }
+      } catch (_) { /* fallback: segunda URL do nosso próprio projeto */ }
     }
-    if (!feed) throw new Error("Ainda não foi possível carregar o histórico publicado pelo GitHub.");
-    if (!feed || feed.source !== "Históricos Blaze" || !Array.isArray(feed.records)) {
-      throw new Error("O arquivo de histórico está em formato inesperado.");
-    }
+    if (!feed) throw new Error("Ainda não há coleta oficial publicada ou o GitHub está indisponível.");
     const fetched = Date.parse(feed.fetched_at || "");
-    if (!Number.isFinite(fetched) || fetched > Date.now()+120000) {
-      throw new Error("Não foi possível conferir o horário de atualização da fonte.");
+    const last = Date.parse(feed.last_result_at || "");
+    if (!Number.isFinite(fetched) || !Number.isFinite(last) ||
+        fetched > Date.now()+120000 || last > fetched+120000) {
+      throw new Error("O arquivo da API oficial contém horários inválidos.");
     }
     const count = mergeRecords(feed.records);
     render();
     const age = Date.now() - fetched;
-    const sourceTime = fmt(fetched);
-    if (age > 2 * HOUR) {
-      tell("O histórico externo está atrasado (última coleta " + sourceTime +
-        "). " + count + " rodadas novas recuperadas. Não considere este painel ao vivo.", "warn");
+    if (age > 45 * 60000) {
+      tell("Dados oficiais atrasados. Última coleta: " + fmt(fetched) +
+        ". " + count + " rodadas novas recuperadas. Não é um painel em tempo real.", "warn");
     } else {
-      tell("Histórico atualizado pelo GitHub: " + count + " rodadas novas. Fonte: Históricos Blaze. Última coleta: " + sourceTime + ". A fonte pode ter lacunas.", "ok");
+      tell("API oficial Blitz • " + feed.latest_100.length + " resultados na última consulta • " +
+        count + " novos no navegador. Coleta: " + fmt(fetched) +
+        ". Atualização automática aproximada de 15 minutos.", "ok");
     }
+    // Diagnóstico opcional: informa pausas, sem misturar outro site como fonte.
+    try {
+      const statusResponse = await fetch(
+        "https://raw.githubusercontent.com/Stormthunder114/calculador-branco-one-for-all/main/data/blitz-oficial-status.json?t=" + Date.now(),
+        {cache:"no-store",credentials:"omit"});
+      if (statusResponse.ok) {
+        const status = await statusResponse.json();
+        const checked = Date.parse(status.checked_at || "");
+        if (Number.isFinite(checked) && Date.now()-checked < 2*HOUR &&
+            ["rate_limited","blocked","error"].includes(status.state)) {
+          tell("A última tentativa da API oficial foi interrompida (" +
+            (status.http_status ? "HTTP " + status.http_status : status.state) +
+            "). Exibindo os últimos dados válidos. " +
+            (status.retry_after ? "Nova tentativa permitida após " + fmt(Date.parse(status.retry_after)) + "." : ""), "warn");
+        }
+      }
+    } catch (_) { /* arquivo auxiliar é opcional */ }
   } catch (err) {
-    tell((err instanceof Error ? err.message : "Falha ao buscar resultados") +
-      " Os dados já armazenados continuam no navegador.", "warn");
+    tell((err instanceof Error ? err.message : "Não foi possível atualizar os resultados oficiais.") +
+      " Os registros antigos da Blitz permanecem disponíveis.", "warn");
   } finally {
     updating = false;
     refreshCooldown();
@@ -405,4 +422,4 @@ $("clearBtn").addEventListener("click", () => {
 render();
 updateData(); // Na abertura, lê apenas o arquivo publicado no nosso próprio site.
 setInterval(refreshCooldown, 30000);
-setInterval(updateData, 10 * 60000); // O coletor na origem roda separadamente, no GitHub.
+setInterval(updateData, 10 * 60000); // Apenas checagem do arquivo oficial no GitHub.
