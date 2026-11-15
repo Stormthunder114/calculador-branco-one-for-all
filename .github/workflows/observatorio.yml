@@ -1,0 +1,20 @@
+name: Verificar Observatório
+on:
+  push:
+    branches:
+      - atualizacao-observatorio-blitz-20261115
+      - main
+  pull_request:
+    branches: [main]
+jobs:
+  teste:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verificar JavaScript
+        run: node --check app.js
+      - name: Verificar regra fixa
+        run: node --test tests/observatorio.test.cjs
