@@ -37,5 +37,11 @@ try:
     for marker in ['created_at','"roll"','\\"roll\\"','datetime=','data-time','data-result']:
         print("FIELD", marker,html.count(marker))
     print("BODY_NUMBERS",len(re.findall(r'>\\s*(?:0|[1-9]|1[0-4])\\s*<',html)))
+    for needle in ["data-result", "created_at", "data-roll", "data-roulette"]:
+        pos=html.find(needle)
+        if pos>=0: print("TAG_SAMPLE",needle,repr(html[max(0,pos-230):pos+340])[:610])
+    for marker in ['data-result=', 'data-created-at=', 'data-result-id=', 'data-record-id=']:
+        print("ATTRIBUTE", marker, html.count(marker))
+
 except Exception as exc:
     print("PUBLIC_PAGE_UNAVAILABLE",type(exc).__name__,str(exc)[:200])
