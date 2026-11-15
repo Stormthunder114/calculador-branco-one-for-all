@@ -32,7 +32,7 @@
         </div>
       </section>
 
-      <div class="notice normal" id="notice" role="status" aria-live="polite">A atualização só acontece quando você clica. Caso a Blitz bloqueie a conexão, o painel explica o motivo.</div>
+      <div class="notice normal" id="notice" role="status" aria-live="polite">A coleta pública ocorre no GitHub aproximadamente uma vez por hora. Esta página verifica automaticamente o arquivo atualizado, sem consultar a Blitz diretamente.</div>
 
       <section class="stats" aria-label="Resumo da validação">
         <div class="tile"><span>Teste anterior</span><strong>3 de 5</strong><small>3 acertos · 2 falhas</small></div>
@@ -112,8 +112,10 @@
           <summary><span><strong>Ajuda e histórico</strong><small>Entenda a regra e salve uma cópia</small></span><span class="chevron">+</span></summary>
           <div class="details-body">
             <p><strong>Como funciona?</strong> Em cada hora, identificamos o primeiro par de amarelos seguidos. As próximas 11 rodadas são observadas. O primeiro branco encerra a contagem; se nenhuma for branca, é falha. Se faltarem dados, não pontuamos.</p>
-            <p><strong>Por que pode não atualizar?</strong> A Blitz pode limitar requisições ou impedir que outros sites leiam a API. Não tentamos contornar bloqueios. O botão respeita um intervalo mínimo de 10 minutos; em caso de erro 429, a pausa é maior.</p>
-            <p><strong>O que acontece com os dados?</strong> Ficam salvos somente neste navegador. O histórico antigo de 3 acertos em 5 testes é um resumo informado anteriormente, não rodadas reconstruídas.</p>
+            <p><strong>Como atualiza?</strong> O GitHub consulta uma amostra pública do Históricos Blaze uma vez por hora, respeitando robots.txt e as restrições do serviço. Nosso site lê a cópia publicada no GitHub e a verifica a cada 10 minutos. O botão apenas recarrega essa cópia.</p>
+ <p><strong>Por que pode atrasar?</strong> A fonte pode ter lacunas, ficar indisponível ou mudar de formato. Nesse caso, preservamos os resultados anteriores e sinalizamos o problema. Sem dados completos, a hora não conta como acerto ou falha.</p>
+            <p><strong>De onde vêm os resultados?</strong> Fonte externa: <a href="https://historicosblaze.com/results/blitz/double" target="_blank" rel="noopener noreferrer">Históricos Blaze — Double Blitz</a>. Não somos afiliados a esse serviço. A cor vermelha (números 1–7) é exibida como amarela (cor 1), seguindo o nome usado neste experimento.</p>
+ <p><strong>O que acontece com os dados?</strong> O GitHub mantém uma amostra limitada e este navegador guarda seu histórico coletado. O resumo anterior de 3 acertos em 5 testes não contém as rodadas originais.</p>
             <div class="option-buttons">
               <button id="exportBtn" class="secondary" type="button">Baixar cópia dos dados</button>
               <button id="clearBtn" class="quiet danger" type="button">Apagar dados novos</button>
@@ -123,7 +125,7 @@
       </section>
       <p class="disclaimer">Ferramenta de pesquisa descritiva. Um resultado anterior não permite saber quando virá o próximo branco e não demonstra vantagem estatística.</p>
     </main>
-    <footer>ONE FOR ALL · Versão de observação 2.0 · Hora de Brasília (UTC−3) · Regra congelada em 15/11/2026</footer>
+    <footer>ONE FOR ALL · Fonte Históricos Blaze · Atualização aproximada de 1 hora · Brasília (UTC−3) · Regra congelada em 15/11/2026</footer>
   </div>
 </body>
 </html>

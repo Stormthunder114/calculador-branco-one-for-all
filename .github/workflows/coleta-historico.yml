@@ -1,0 +1,45 @@
+name: Coleta pública Históricos Blaze - Blitz
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+  push:
+    branches: [verificar-fonte-historicos-20261115]
+permissions:
+  contents: write
+concurrency:
+  group: one-for-all-historico-publico
+  cancel-in-progress: false
+jobs:
+  atualizar-amostra:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Testar regras e formato de dados
+        run: |
+          python3 -m unittest discover -s tests -p 'test_coletor.py'
+          node --check app.js
+          node --test tests/observatorio.test.cjs
+      - name: Atualizar uma amostra pública com limite de requisições
+        run: python3 scripts/coletar_historicos.py
+      - name: Publicar JSON somente quando estiver válido
+        run: |
+          if [ ! -f data/blitz-historico-publico.json ]; then
+            echo "Sem dados válidos: mantendo versão anterior."
+            exit 0
+          fi
+          git add data/blitz-historico-publico.json
+          if git diff --staged --quiet; then
+            echo "Nenhuma alteração."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Atualiza amostra pública de resultados Blitz"
+          git push
