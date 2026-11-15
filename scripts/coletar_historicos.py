@@ -97,11 +97,11 @@ def main():
         for rec in old_records()
         if isinstance(rec,dict) and "id" in rec
     }
-    old_size = len(saved)
+    old_ids = set(saved)
     for item in recent:
         saved[item["id"]] = item
     merged = sorted(saved.values(), key=lambda x: (x["created_at"], x["id"]))[-MAX_ARCHIVE:]
-    new_size = sum(1 for x in recent if x["id"] not in {r["id"] for r in old_records()})
+    new_size = sum(1 for x in recent if x["id"] not in old_ids)
     now = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00","Z")
     result = {
         "source": "Históricos Blaze",
