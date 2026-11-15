@@ -6,6 +6,9 @@
 const API = "https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1";
 const TIMEZONE = "America/Sao_Paulo";
 const POLL_MS = 120000;
+const LOCAL_STREAM = typeof window !== "undefined" &&
+  ["127.0.0.1", "localhost", "[::1]"].includes(window.location?.hostname);
+let liveStream = null;
 const CONTINUITY_MS = 150000;
 const FRESH_MS = 300000;
 const MAX_SERVER_AGE_MS = 600000;
@@ -249,6 +252,14 @@ function renderLastResult() {
 function renderSchedule() {
   const el=$("nextUpdate"),button=$("refreshBtn");
   $("lastChecked").textContent=lastRequestedAt?formatTime(lastRequestedAt):"Ainda não realizada";
+  if (LOCAL_STREAM) {
+    button.hidden=true;
+    const seconds=Math.max(0,Math.ceil((nextRequestAt-Date.now())/1000));
+    el.textContent=state==="denied" ? "Coleta suspensa pela resposta da Blitz." :
+      state==="unavailable" ? "Aguardando conexão; reconexão automática ativa." :
+      "Página conectada ao Python · próxima consulta em "+seconds+"s. Novos resultados aparecem automaticamente.";
+    return;
+  }
   if (inFlight) {
     el.textContent="Recebendo a primeira página (até 100 rodadas)...";
     button.disabled=true;
@@ -348,6 +359,7 @@ function retryAfter(response,now) {
   return now+Math.max(30*60000,Math.min(ms,86400000));
 }
 async function updateLive() {
+  if (LOCAL_STREAM) return;
   if (inFlight || stopAutomatic || Date.now()<blockUntil) return;
   if (lastRequestedAt && Date.now()-lastRequestedAt<POLL_MS) return;
   if (typeof document !== "undefined" && document.hidden) return;
@@ -424,6 +436,7 @@ async function updateLive() {
   }
 }
 function schedulePoll() {
+  if (LOCAL_STREAM) return;
   if (pollingHandle!==null) clearTimeout(pollingHandle);
   pollingHandle=null;
   if (stopAutomatic) return;
@@ -463,6 +476,44 @@ setInterval(()=>{
   renderRounds();
   renderStatistics();
 },30000);
+function receiveSnapshot(payload) {
+  if (!payload || typeof payload !== "object") throw new Error("Mensagem local inválida.");
+  if (payload.status === "live") {
+    const parsed=normalizeOfficial({records:payload.records},Date.now());
+    if (!everConnected) archive=loadOfficialArchive(Date.now());
+    mergeOfficial(parsed,Date.now());
+    everConnected=true;
+    lastFetchedAt=Date.now();
+  }
+  lastRequestedAt=Number(payload.checked_at)||lastRequestedAt;
+  nextRequestAt=Number(payload.next_check)||0;
+  const allowed=["loading","live","delayed","unavailable","rate-limited","denied"];
+  let nextState=allowed.includes(payload.status)?payload.status:"unavailable";
+  if(nextState==="live" && latest.length && Date.now()-latest[0].t>FRESH_MS) nextState="delayed";
+  setStatus(nextState,String(payload.message||"Aguardando resultados do Python."));
+  showConnectionDetail("Atualização automática recebida do servidor Python local.");
+  render();
+}
+function startLocalStream() {
+  if (liveStream) return;
+  $("requestedUrl").textContent="/events · Python consulta a API da Blitz a cada 15 segundos";
+  if (typeof EventSource === "undefined") {
+    setStatus("unavailable","Este navegador não suporta a conexão automática. Use Chrome ou Edge atualizado.");
+    return;
+  }
+  liveStream=new EventSource("/events");
+  liveStream.addEventListener("snapshot",event=>{
+    try { receiveSnapshot(JSON.parse(event.data)); }
+    catch (_) { setStatus("delayed","Mensagem recebida sem resultados atuais válidos. Histórico preservado."); }
+  });
+  liveStream.onerror=()=>{
+    setStatus("unavailable","Conexão com o Python interrompida. Reconectando automaticamente; mantenha INICIAR.bat aberto.");
+  };
+}
 render();
 logEvent("Painel iniciado; aguardando consulta à API oficial.","info");
-if (typeof window !== "undefined") updateLive();
+if (typeof window !== "undefined") {
+  if (LOCAL_STREAM) startLocalStream();
+  else updateLive();
+}
+

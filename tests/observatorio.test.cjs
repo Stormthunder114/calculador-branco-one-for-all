@@ -216,3 +216,36 @@ test("Falha sem código HTTP não é descrita como recusa confirmada pelo servid
   assert.doesNotMatch(document.getElementById("nextUpdate").textContent,/servidor não autorizou/i);
   assert.equal(document.getElementById("refreshBtn").textContent,"Não foi possível conectar");
 });
+
+test("SSE atualiza grade e experimento, reconexão não duplica rodadas",()=>{
+  const {ctx,document,store,now}=harness(START+8*60000);
+  const records=singleSequence(START,[1,1,2,2,2,2,2,2,0]).map(r=>({
+    id:r.id,roll:r.roll,color:r.c,created_at:new Date(r.t).toISOString()
+  }));
+  const snapshot={status:"live",records,checked_at:now,next_check:now+15000,message:"Teste local"};
+  ctx.receiveSnapshot(snapshot);
+  ctx.receiveSnapshot(snapshot);
+  assert.equal(JSON.parse(store.get("ofa_apenas_blitz_live_v1")).records.length,9);
+  assert.equal(document.getElementById("signalHits").textContent,"1");
+  assert.match(document.getElementById("historyRows").innerHTML,/7\/11/);
+  assert.match(document.getElementById("rounds").innerHTML,/class="round/);
+  ctx.receiveSnapshot({status:"unavailable",checked_at:now,message:"Offline"});
+  assert.equal(JSON.parse(store.get("ofa_apenas_blitz_live_v1")).records.length,9);
+  assert.equal(document.getElementById("statusBadge").textContent,"Conexão indisponível");
+});
+
+test("Modo local usa uma conexão SSE e nunca consulta a Blitz pelo navegador",async()=>{
+  const {ctx,now}=harness();
+  const callbacks=new Map();let opened=0,requests=0;
+  const source=JS.replace('const LOCAL_STREAM = typeof window !== "undefined" &&\n  ["127.0.0.1", "localhost", "[::1]"].includes(window.location?.hostname);','const LOCAL_STREAM = true;');
+  const local={...ctx, window:{location:{hostname:"127.0.0.1"}},
+    fetch:async()=>{requests++;throw Error("Não deveria consultar");},
+    EventSource:class {constructor(url){assert.equal(url,"/events");opened++;} addEventListener(type,fn){callbacks.set(type,fn);}}
+  };
+  vm.createContext(local);vm.runInContext(source,local);
+  local.startLocalStream(); await local.updateLive();
+  callbacks.get("snapshot")({data:JSON.stringify({status:"live",records:rows(now),checked_at:now,next_check:now+15000})});
+  assert.equal(opened,1);assert.equal(requests,0);
+  assert.equal(local.document.getElementById("sampleTotal").textContent,"100");
+});
+

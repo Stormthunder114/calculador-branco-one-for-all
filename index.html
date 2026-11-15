@@ -9,7 +9,7 @@
   <meta name="description" content="One For All: painel de monitoramento estatístico dos últimos 100 resultados oficiais do Double da Blitz.">
   <title>One For All | Double ao vivo</title>
   <link rel="stylesheet" href="./style.css">
-  <script src="./app.js?v=20261115-diagnostico-preciso" defer></script>
+  <script src="./app.js?v=20261115-stream-local" defer></script>
 </head>
 <body>
   <div class="shell">
@@ -113,6 +113,8 @@
 
       <section class="help">
         <h2>Como funciona a atualização?</h2>
+        <p><strong>No PC:</strong> abra INICIAR.bat e mantenha o Python aberto. No endereço local, a página recebe cada resultado assim que o Python o detecta, sem recarregar. O Python consulta a Blitz a cada 15 segundos, mais o tempo da resposta. Ao perder a conexão, a página tenta reconectar automaticamente.</p>
+        <p><strong>No GitHub Pages:</strong> o servidor Python não é executado. Para usar a atualização automática pelo Python, acesse o endereço local aberto pelo INICIAR.bat.</p>
         <p>O One For All consulta diretamente a <a id="apiInfoLink" href="https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1" target="_blank" rel="noopener noreferrer">API oficial da Blitz</a>, sem parâmetros de data, conforme o endereço que você testou. Quando o serviço permite leitura, atualiza aproximadamente a cada 2 minutos com a aba ativa. O celular pode suspender atualizações em segundo plano.</p>
         <p>Se a Blitz bloquear a leitura entre sites (CORS) ou retornar HTTP 403, 429 ou 451, o painel indicará a falha. Não utiliza proxies, dados fictícios ou outra fonte para simular resultados ao vivo.</p>
       </section>
