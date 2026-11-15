@@ -42,11 +42,10 @@ function formatTime(timestamp) {
 function formatHour(timestamp) {
   return shortTime.format(new Date(timestamp));
 }
-function buildApiUrl(now = Date.now()) {
-  const start = new Date(now - 2 * 86400000).toISOString();
-  const end = new Date(now).toISOString();
-  return API + "?startDate=" + encodeURIComponent(start) +
-    "&endDate=" + encodeURIComponent(end) + "&page=1";
+function buildApiUrl() {
+  // O endpoint fornecido pelo usuário retorna as rodadas recentes sem filtro por datas.
+  // Não adicionar startDate, endDate ou page; validar os registros e sua idade na resposta.
+  return API + "?";
 }
 function validateRound(raw, now = Date.now()) {
   if (!raw || raw.id === undefined || raw.id === null) return null;
@@ -57,7 +56,7 @@ function validateRound(raw, now = Date.now()) {
   const sourceTime = String(raw.created_at || "");
   if (!/(Z|[+-]\d\d:\d\d)$/i.test(sourceTime)) return null;
   const t = Date.parse(sourceTime);
-  if (!Number.isFinite(t) || t > now+120000 || t < now-2*86400000-120000) return null;
+  if (!Number.isFinite(t) || t > now+120000 || t < now-3*3600000-120000) return null;
   return {id:String(raw.id),t,roll,c:color};
 }
 function normalizeOfficial(body, now = Date.now()) {

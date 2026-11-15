@@ -55,13 +55,11 @@ test("Só existe uma fonte, sem histórico Blaze nem importação manual",()=>{
   assert.doesNotMatch(JS,/historicosblaze|clipboard|parsePastedNumbers|sourceMode|pasteRolls/i);
   assert.doesNotMatch(HTML,/historicosblaze|clipboardImport|officialPaste|manualOfficialImport|testar as cores manualmente|atualizacao-automatica\.js/i);
 });
-test("Gera datas dinâmicas e consulta apenas a página 1",()=>{
-  const {ctx,now}=harness();
-  const url=new URL(ctx.buildApiUrl(now));
-  assert.equal(url.pathname,"/api/singleplayer-originals/originals/roulette_games/recent/history/1");
-  assert.equal(url.searchParams.get("page"),"1");
-  assert.equal(Date.parse(url.searchParams.get("endDate")),now);
-  assert.equal(now-Date.parse(url.searchParams.get("startDate")),48*3600000);
+test("Usa exatamente o endpoint oficial sem datas e sem parâmetros",()=>{
+  const {ctx}=harness();
+  const endpoint=ctx.buildApiUrl();
+  assert.equal(endpoint,"https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1?");
+  assert.equal(endpoint.split("?")[1],"");
 });
 test("Valida 100 resultados oficiais e organiza do antigo ao recente",()=>{
   const {ctx,now}=harness();
@@ -80,7 +78,7 @@ test("Rejeita resultados do dia 13 como se fossem ao vivo no dia 15",()=>{
   const {ctx,now}=harness();
   const old=rows(now-2*86400000);
   assert.throws(()=>ctx.normalizeOfficial({records:old},now));
-  const stale=rows(now-3*3600000);
+  const stale=rows(now-30*60000);
   assert.throws(()=>ctx.normalizeOfficial({records:stale},now),/antigos/);
 });
 test("Uma coleta real simulada atualiza somente os 100 oficiais",async()=>{
@@ -89,7 +87,7 @@ test("Uma coleta real simulada atualiza somente os 100 oficiais",async()=>{
   let calls=0;
   ctx.fetch=async (url,options)=>{
     calls++;
-    assert.match(url,/page=1/);
+    assert.equal(url,"https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1?");
     assert.equal(options.mode,"cors");
     assert.equal(options.credentials,"omit");
     return {status:200,ok:true,json:async()=>payload};
