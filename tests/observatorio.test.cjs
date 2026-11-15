@@ -50,12 +50,12 @@ function singleSequence(start,colors,step=30000){
     roll:c===0?0:c===1?2:11
   }));
 }
-test("Só existe uma fonte, sem histórico Blaze nem importação manual",()=>{
+test("S� existe uma fonte, sem hist�rico Blaze nem importa��o manual",()=>{
   assert.match(JS,/blitz4\.casino\/api\/singleplayer-originals/);
   assert.doesNotMatch(JS,/historicosblaze|clipboard|parsePastedNumbers|sourceMode|pasteRolls/i);
   assert.doesNotMatch(HTML,/historicosblaze|clipboardImport|officialPaste|manualOfficialImport|testar as cores manualmente|atualizacao-automatica\.js/i);
 });
-test("Usa exatamente o endpoint oficial sem datas e sem parâmetros",()=>{
+test("Usa exatamente o endpoint oficial sem datas e sem par�metros",()=>{
   const {ctx}=harness();
   const endpoint=ctx.buildApiUrl();
   assert.equal(endpoint,"https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1?");
@@ -68,7 +68,7 @@ test("Valida 100 resultados oficiais e organiza do antigo ao recente",()=>{
   assert.ok(sample[0].t<sample[99].t);
   assert.equal(sample[99].id,"r0");
 });
-test("Rejeita número ou cor inconsistentes",()=>{
+test("Rejeita n�mero ou cor inconsistentes",()=>{
   const {ctx,now}=harness();
   assert.equal(ctx.validateRound({id:1,roll:0,color:1,created_at:new Date(now-30000).toISOString()},now),null);
   assert.equal(ctx.validateRound({id:1,roll:12,color:1,created_at:new Date(now-30000).toISOString()},now),null);
@@ -95,15 +95,15 @@ test("Uma coleta real simulada atualiza somente os 100 oficiais",async()=>{
   await ctx.updateLive();
   assert.equal(calls,1);
   assert.equal(document.getElementById("sampleTotal").textContent,"100");
-  assert.equal(document.getElementById("statusBadge").textContent,"Conectado à Blitz");
+  assert.equal(document.getElementById("statusBadge").textContent,"Conectado � Blitz");
   assert.match(document.getElementById("rounds").innerHTML,/class="round c/);
   const archive=JSON.parse(store.get("ofa_apenas_blitz_live_v1"));
   assert.equal(archive.source,"Blitz API oficial");
   assert.equal(archive.records.length,100);
   await ctx.updateLive();
-  assert.equal(calls,1,"O botão não deve fazer consultas repetidas imediatamente");
+  assert.equal(calls,1,"O bot�o n�o deve fazer consultas repetidas imediatamente");
 });
-test("Uma sequência contínua registra branco na tentativa 7",()=>{
+test("Uma sequ�ncia cont�nua registra branco na tentativa 7",()=>{
   const {ctx}=harness(START+10*60000);
   const sample=singleSequence(START,[1,1,2,2,2,2,2,2,0]);
   ctx.mergeOfficial(sample,START+10*60000);
@@ -111,44 +111,44 @@ test("Uma sequência contínua registra branco na tentativa 7",()=>{
   assert.equal(outcome.status,"acerto");
   assert.equal(outcome.attempt,7);
 });
-test("11 rodadas sem branco é falha",()=>{
+test("11 rodadas sem branco � falha",()=>{
   const {ctx}=harness(START+10*60000);
   ctx.mergeOfficial(singleSequence(START,[1,1,...Array(11).fill(2)]),START+10*60000);
   const outcome=ctx.hourResults(START+10*60000)[0];
   assert.equal(outcome.status,"falha");
 });
-test("Lacuna na sequência não gera acerto nem falha",()=>{
+test("Lacuna na sequ�ncia n�o gera acerto nem falha",()=>{
   const {ctx}=harness(START+10*60000);
   const data=singleSequence(START,[1,1,2,2,2,2,2,2,0]);
   data.slice(3).forEach(r=>{r.t+=240000;});
   ctx.mergeOfficial(data,START+10*60000);
   assert.equal(ctx.hourResults(START+10*60000)[0].status,"incompleto");
 });
-test("HTTP 429 respeita o intervalo e não consulta repetidamente",async()=>{
+test("HTTP 429 respeita o intervalo e n�o consulta repetidamente",async()=>{
   const {ctx,document}=harness();
   let count=0;
   ctx.fetch=async()=>({ok:false,status:429,headers:{get:()=>String(600)}});
   await ctx.updateLive();
-  assert.equal(document.getElementById("statusBadge").textContent,"Aguardando liberação");
+  assert.equal(document.getElementById("statusBadge").textContent,"Aguardando libera��o");
   await ctx.updateLive();
   assert.match(document.getElementById("nextUpdate").textContent,/Nova tentativa/);
 });
-test("HTTP 451 encerra consulta automática sem fazer nova tentativa",async()=>{
+test("HTTP 451 encerra consulta autom�tica sem fazer nova tentativa",async()=>{
   const {ctx,document}=harness();
   let count=0;
   ctx.fetch=async()=>{count++;return {ok:false,status:451}};
   await ctx.updateLive();
   await ctx.updateLive();
   assert.equal(count,1);
-  assert.equal(document.getElementById("statusBadge").textContent,"Acesso não autorizado");
+  assert.equal(document.getElementById("statusBadge").textContent,"Acesso n�o autorizado");
   assert.equal(document.getElementById("refreshBtn").disabled,true);
 });
-test("Falha CORS/rede não exibe dados antigos como sucesso",async()=>{
+test("Falha CORS/rede n�o exibe dados antigos como sucesso",async()=>{
   const {ctx,document}=harness();
   ctx.fetch=async()=>{throw new TypeError("Failed to fetch")};
   await ctx.updateLive();
-  assert.equal(document.getElementById("sampleTotal").textContent,"—");
-  assert.equal(document.getElementById("statusBadge").textContent,"Conexão indisponível");
+  assert.equal(document.getElementById("sampleTotal").textContent,"-");
+  assert.equal(document.getElementById("statusBadge").textContent,"Conex�o indispon�vel");
   assert.match(document.getElementById("notice").textContent,/CORS/);
 });
 
@@ -159,7 +159,7 @@ test("Identifica na tela a URL realmente utilizada sem datas",()=>{
     "https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1?");
   assert.equal(ctx.buildApiUrl(),document.getElementById("requestedUrl").textContent);
 });
-test("Falha sem status HTTP informa CORS ou rede, não inventa um código",async()=>{
+test("Falha sem status HTTP informa CORS ou rede, n�o inventa um c�digo",async()=>{
   const {ctx,document}=harness();
   ctx.fetch=async()=>{throw new TypeError("Failed to fetch")};
   await ctx.updateLive();
@@ -170,7 +170,7 @@ test("Falha sem status HTTP informa CORS ou rede, não inventa um código",async
 });
 
 
-test("Histórico acumula no máximo 300 registros oficiais, sem fontes alternativas",()=>{
+test("Hist�rico acumula no m�ximo 300 registros oficiais, sem fontes alternativas",()=>{
   const {ctx,store,now}=harness();
   const data=Array.from({length:370},(_,i)=>({
     id:"history"+i,t:now-370000+i*1000,
@@ -182,7 +182,7 @@ test("Histórico acumula no máximo 300 registros oficiais, sem fontes alternati
   assert.equal(saved.source,"Blitz API oficial");
   assert.equal(ctx.loadOfficialArchive(now).length,300);
 });
-test("A API pode responder menos de 100 resultados e ainda ser válida",()=>{
+test("A API pode responder menos de 100 resultados e ainda ser v�lida",()=>{
   const {ctx,now}=harness();
   assert.equal(ctx.normalizeOfficial({records:rows(now,21)},now).length,21);
 });
@@ -199,7 +199,7 @@ test("Brancos: intervalo calculado apenas entre rodadas sem lacunas",()=>{
   sum=ctx.whiteIntervalStats(results);
   assert.equal(sum.intervals,1);
 });
-test("Atualização sem dados atuais não apresenta grade antiga como ao vivo",()=>{
+test("Atualiza��o sem dados atuais n�o apresenta grade antiga como ao vivo",()=>{
   const {ctx,document,now}=harness();
   const old=singleSequence(START,[0,1,2]);
   ctx.mergeOfficial(old,now);
@@ -208,11 +208,44 @@ test("Atualização sem dados atuais não apresenta grade antiga como ao vivo",(
 });
 
 
-test("Falha sem código HTTP não é descrita como recusa confirmada pelo servidor",async()=>{
+test("Falha sem c�digo HTTP n�o � descrita como recusa confirmada pelo servidor",async()=>{
   const {ctx,document}=harness();
   ctx.fetch=async()=>{throw new TypeError("Failed to fetch")};
   await ctx.updateLive();
   assert.match(document.getElementById("nextUpdate").textContent,/CORS ou rede/);
-  assert.doesNotMatch(document.getElementById("nextUpdate").textContent,/servidor não autorizou/i);
-  assert.equal(document.getElementById("refreshBtn").textContent,"Não foi possível conectar");
+  assert.doesNotMatch(document.getElementById("nextUpdate").textContent,/servidor n�o autorizou/i);
+  assert.equal(document.getElementById("refreshBtn").textContent,"N�o foi poss�vel conectar");
 });
+
+test("SSE atualiza grade e experimento, reconex�o n�o duplica rodadas",()=>{
+  const {ctx,document,store,now}=harness(START+8*60000);
+  const records=singleSequence(START,[1,1,2,2,2,2,2,2,0]).map(r=>({
+    id:r.id,roll:r.roll,color:r.c,created_at:new Date(r.t).toISOString()
+  }));
+  const snapshot={status:"live",records,checked_at:now,next_check:now+15000,message:"Teste local"};
+  ctx.receiveSnapshot(snapshot);
+  ctx.receiveSnapshot(snapshot);
+  assert.equal(JSON.parse(store.get("ofa_apenas_blitz_live_v1")).records.length,9);
+  assert.equal(document.getElementById("signalHits").textContent,"1");
+  assert.match(document.getElementById("historyRows").innerHTML,/7\/11/);
+  assert.match(document.getElementById("rounds").innerHTML,/class="round/);
+  ctx.receiveSnapshot({status:"unavailable",checked_at:now,message:"Offline"});
+  assert.equal(JSON.parse(store.get("ofa_apenas_blitz_live_v1")).records.length,9);
+  assert.equal(document.getElementById("statusBadge").textContent,"Conex�o indispon�vel");
+});
+
+test("Modo local usa uma conex�o SSE e nunca consulta a Blitz pelo navegador",async()=>{
+  const {ctx,now}=harness();
+  const callbacks=new Map();let opened=0,requests=0;
+  const source=JS.replace('const LOCAL_STREAM = typeof window !== "undefined" &&\n  ["127.0.0.1", "localhost", "[::1]"].includes(window.location?.hostname);','const LOCAL_STREAM = true;');
+  const local={...ctx, window:{location:{hostname:"127.0.0.1"}},
+    fetch:async()=>{requests++;throw Error("N�o deveria consultar");},
+    EventSource:class {constructor(url){assert.equal(url,"/events");opened++;} addEventListener(type,fn){callbacks.set(type,fn);}}
+  };
+  vm.createContext(local);vm.runInContext(source,local);
+  local.startLocalStream(); await local.updateLive();
+  callbacks.get("snapshot")({data:JSON.stringify({status:"live",records:rows(now),checked_at:now,next_check:now+15000})});
+  assert.equal(opened,1);assert.equal(requests,0);
+  assert.equal(local.document.getElementById("sampleTotal").textContent,"100");
+});
+

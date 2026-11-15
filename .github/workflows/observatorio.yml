@@ -1,4 +1,4 @@
-name: Verificar Observatório
+name: Verificar Observat�rio
 on:
   push:
     branches:
@@ -18,3 +18,9 @@ jobs:
         run: node --check app.js
       - name: Verificar regra fixa
         run: node --test tests/*.test.cjs
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verificar servidor e transmiss�o local
+        run: python -m unittest discover -s tests -p 'test_*.py'
+

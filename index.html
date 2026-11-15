@@ -6,16 +6,16 @@
   <meta name="color-scheme" content="dark">
   <meta name="apple-mobile-web-app-title" content="One For All">
   <meta name="theme-color" content="#091521">
-  <meta name="description" content="One For All: painel de monitoramento estatístico dos últimos 100 resultados oficiais do Double da Blitz.">
+  <meta name="description" content="One For All: painel de monitoramento estat�stico dos �ltimos 100 resultados oficiais do Double da Blitz.">
   <title>One For All | Double ao vivo</title>
   <link rel="stylesheet" href="./style.css">
-  <script src="./app.js?v=20261115-diagnostico-preciso" defer></script>
+  <script src="./app.js?v=20261115-stream-local" defer></script>
 </head>
 <body>
   <div class="shell">
     <header class="topbar">
-      <div class="brand"><span class="brand-icon">1</span><div><strong>ONE FOR ALL</strong><small>OBSERVATÓRIO DOUBLE</small></div></div>
-      <a class="source-link" id="apiLink" href="https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1" target="_blank" rel="noopener noreferrer">Fonte: API oficial da Blitz <span aria-hidden="true">↗</span></a>
+      <div class="brand"><span class="brand-icon">1</span><div><strong>ONE FOR ALL</strong><small>OBSERVAT�RIO DOUBLE</small></div></div>
+      <a class="source-link" id="apiLink" href="https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1" target="_blank" rel="noopener noreferrer">Fonte: API oficial da Blitz <span aria-hidden="true">?</span></a>
     </header>
 
     <main>
@@ -23,102 +23,104 @@
         <div class="hero-heading">
           <div class="eyebrow"><span class="eyebrow-dot"></span> SOMENTE RESULTADOS OFICIAIS</div>
           <h1>Double <span>em tempo real.</span></h1>
-          <p>Resultados oficiais, histórico de até 300 rodadas e estatísticas atualizadas quando a Blitz permitir a consulta. Sem fontes alternativas nem lançamentos manuais.</p>
+          <p>Resultados oficiais, hist�rico de at� 300 rodadas e estat�sticas atualizadas quando a Blitz permitir a consulta. Sem fontes alternativas nem lan�amentos manuais.</p>
           <div class="connection">
             <span class="status-dot" id="statusDot" aria-hidden="true"></span>
             <span id="statusBadge" aria-live="polite">Conectando...</span>
-            <span class="live-clock" id="liveClock" aria-label="Horário de Brasília">--:--:--</span>
+            <span class="live-clock" id="liveClock" aria-label="Hor�rio de Bras�lia">--:--:--</span>
           </div>
         </div>
         <div class="status-panel">
-          <div class="small-label">ÚLTIMA RODADA OFICIAL</div>
-          <div class="last-result" id="lastResult">Aguardando conexão</div>
-          <p id="lastResultDetails">O primeiro carregamento acontecerá automaticamente.</p>
-          <div class="sync-meta"><span>Última consulta</span><strong id="lastChecked">Ainda não realizada</strong></div>
+          <div class="small-label">�LTIMA RODADA OFICIAL</div>
+          <div class="last-result" id="lastResult">Aguardando conex�o</div>
+          <p id="lastResultDetails">O primeiro carregamento acontecer� automaticamente.</p>
+          <div class="sync-meta"><span>�ltima consulta</span><strong id="lastChecked">Ainda n�o realizada</strong></div>
           <button id="refreshBtn" class="action" type="button">Atualizar agora</button>
-          <p class="hint" id="nextUpdate">A atualização é automática enquanto esta página estiver aberta.</p>
+          <p class="hint" id="nextUpdate">A atualiza��o � autom�tica enquanto esta p�gina estiver aberta.</p>
         </div>
       </section>
 
       <div id="notice" class="notice neutral" role="status" aria-live="polite">
-        Consultando a API oficial sem filtros de data, com até 100 resultados.
+        Consultando a API oficial sem filtros de data, com at� 100 resultados.
       </div>
-      <details class="request-info" aria-label="Diagnóstico da conexão">
-        <summary>Detalhes da conexão e diagnóstico</summary>
-        <div class="details-inner"><strong>Endereço consultado</strong>
+      <details class="request-info" aria-label="Diagn�stico da conex�o">
+        <summary>Detalhes da conex�o e diagn�stico</summary>
+        <div class="details-inner"><strong>Endere�o consultado</strong>
           <code id="requestedUrl">https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1?</code>
-          <p id="requestInfo" aria-live="polite">Aguardando resposta. Abrir a URL diretamente não garante autorização de leitura entre domínios.</p>
+          <p id="requestInfo" aria-live="polite">Aguardando resposta. Abrir a URL diretamente n�o garante autoriza��o de leitura entre dom�nios.</p>
         </div>
       </details>
 
-      <section class="stats" aria-label="Estatísticas das rodadas oficiais">
-        <div class="stat"><span>Rodadas recebidas</span><strong id="sampleTotal">—</strong><small>Máximo de 100 por consulta</small></div>
-        <div class="stat"><span>Brancos</span><strong id="countWhite">—</strong><small id="pctWhite">Na amostra</small></div>
-        <div class="stat"><span>Amarelos (1–7)</span><strong id="countYellow">—</strong><small id="pctYellow">Na amostra</small></div>
-        <div class="stat"><span>Pretos (8–14)</span><strong id="countBlack">—</strong><small id="pctBlack">Na amostra</small></div>
+      <section class="stats" aria-label="Estat�sticas das rodadas oficiais">
+        <div class="stat"><span>Rodadas recebidas</span><strong id="sampleTotal">-</strong><small>M�ximo de 100 por consulta</small></div>
+        <div class="stat"><span>Brancos</span><strong id="countWhite">-</strong><small id="pctWhite">Na amostra</small></div>
+        <div class="stat"><span>Amarelos (1-7)</span><strong id="countYellow">-</strong><small id="pctYellow">Na amostra</small></div>
+        <div class="stat"><span>Pretos (8-14)</span><strong id="countBlack">-</strong><small id="pctBlack">Na amostra</small></div>
       </section>
 
       <section class="panel">
         <div class="panel-title">
-          <div><h2>Últimos 100 resultados</h2><p id="sampleDescription">Aguardando os dados oficiais.</p></div>
+          <div><h2>�ltimos 100 resultados</h2><p id="sampleDescription">Aguardando os dados oficiais.</p></div>
           <div class="legend"><span><i class="ball-key key-white"></i>Branco</span><span><i class="ball-key key-yellow"></i>Amarelo</span><span><i class="ball-key key-black"></i>Preto</span></div>
         </div>
-        <div class="rounds" id="rounds" aria-label="Resultados da API oficial">Os resultados aparecerão quando a Blitz permitir a consulta.</div>
-        <div class="frequency-bars" aria-label="Frequência das cores na última amostra">
+        <div class="rounds" id="rounds" aria-label="Resultados da API oficial">Os resultados aparecer�o quando a Blitz permitir a consulta.</div>
+        <div class="frequency-bars" aria-label="Frequ�ncia das cores na �ltima amostra">
           <span class="bar-segment white-segment" id="barWhite"></span>
           <span class="bar-segment yellow-segment" id="barYellow"></span>
           <span class="bar-segment black-segment" id="barBlack"></span>
         </div>
-        <p class="sample-footnote">Ordem: mais recente primeiro · Toque em uma bola para ver o horário.</p>
+        <p class="sample-footnote">Ordem: mais recente primeiro � Toque em uma bola para ver o hor�rio.</p>
       </section>
 
       <section class="panel" id="historico300">
         <div class="panel-title">
-          <div><h2>Histórico oficial acumulado</h2><p id="archiveDescription">Até 300 rodadas recebidas em consultas autorizadas. O histórico não é uma conexão ao vivo.</p></div>
+          <div><h2>Hist�rico oficial acumulado</h2><p id="archiveDescription">At� 300 rodadas recebidas em consultas autorizadas. O hist�rico n�o � uma conex�o ao vivo.</p></div>
           <span class="history-count" id="archiveCount">0 / 300</span>
         </div>
         <div class="archive-metrics">
-          <div><span>Brancos no histórico</span><strong id="archiveWhites">—</strong></div>
-          <div><span>Intervalo médio entre brancos</span><strong id="archiveMeanGap">—</strong></div>
-          <div><span>Maior intervalo observado</span><strong id="archiveMaxGap">—</strong></div>
+          <div><span>Brancos no hist�rico</span><strong id="archiveWhites">-</strong></div>
+          <div><span>Intervalo m�dio entre brancos</span><strong id="archiveMeanGap">-</strong></div>
+          <div><span>Maior intervalo observado</span><strong id="archiveMaxGap">-</strong></div>
         </div>
         <details class="archive-disclosure">
           <summary>Ver todas as rodadas acumuladas</summary>
-          <div class="rounds history-rounds" id="archiveRounds">O histórico ficará disponível após uma consulta oficial bem-sucedida.</div>
+          <div class="rounds history-rounds" id="archiveRounds">O hist�rico ficar� dispon�vel ap�s uma consulta oficial bem-sucedida.</div>
         </details>
       </section>
 
       <section class="panel">
         <div class="panel-title">
-          <div><h2>Experimento de 11 rodadas</h2><p>Primeiro par amarelo de cada hora, seguido por até 11 resultados. Apenas sequências completas são pontuadas.</p></div>
+          <div><h2>Experimento de 11 rodadas</h2><p>Primeiro par amarelo de cada hora, seguido por at� 11 resultados. Apenas sequ�ncias completas s�o pontuadas.</p></div>
         </div>
         <div class="experiment-overview">
-          <div><span>Sinais concluídos</span><strong id="signalTotal">0</strong></div>
+          <div><span>Sinais conclu�dos</span><strong id="signalTotal">0</strong></div>
           <div><span>Com branco</span><strong id="signalHits">0</strong></div>
           <div><span>Sem branco</span><strong id="signalMisses">0</strong></div>
-          <div><span>Taxa observada</span><strong id="signalRate">—</strong></div>
+          <div><span>Taxa observada</span><strong id="signalRate">-</strong></div>
         </div>
         <div class="table-container">
           <table>
-            <thead><tr><th>Hora (Brasília)</th><th>Par amarelo</th><th>Situação</th><th>Contagem</th></tr></thead>
+            <thead><tr><th>Hora (Bras�lia)</th><th>Par amarelo</th><th>Situa��o</th><th>Contagem</th></tr></thead>
             <tbody id="historyRows"><tr><td class="empty" colspan="4">Aguardando rodadas suficientes.</td></tr></tbody>
           </table>
         </div>
       </section>
 
       <section class="panel connection-history">
-        <div class="panel-title"><div><h2>Registro da conexão</h2><p>Últimos eventos desta sessão, para identificar por que a API não respondeu.</p></div></div>
-        <div class="event-list" id="eventList">Aguardando primeiro teste de conexão.</div>
+        <div class="panel-title"><div><h2>Registro da conex�o</h2><p>�ltimos eventos desta sess�o, para identificar por que a API n�o respondeu.</p></div></div>
+        <div class="event-list" id="eventList">Aguardando primeiro teste de conex�o.</div>
       </section>
 
       <section class="help">
-        <h2>Como funciona a atualização?</h2>
-        <p>O One For All consulta diretamente a <a id="apiInfoLink" href="https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1" target="_blank" rel="noopener noreferrer">API oficial da Blitz</a>, sem parâmetros de data, conforme o endereço que você testou. Quando o serviço permite leitura, atualiza aproximadamente a cada 2 minutos com a aba ativa. O celular pode suspender atualizações em segundo plano.</p>
-        <p>Se a Blitz bloquear a leitura entre sites (CORS) ou retornar HTTP 403, 429 ou 451, o painel indicará a falha. Não utiliza proxies, dados fictícios ou outra fonte para simular resultados ao vivo.</p>
+        <h2>Como funciona a atualiza��o?</h2>
+        <p><strong>No PC:</strong> abra INICIAR.bat e mantenha o Python aberto. No endere�o local, a p�gina recebe cada resultado assim que o Python o detecta, sem recarregar. O Python consulta a Blitz a cada 15 segundos, mais o tempo da resposta. Ao perder a conex�o, a p�gina tenta reconectar automaticamente.</p>
+        <p><strong>No GitHub Pages:</strong> o servidor Python n�o � executado. Para usar a atualiza��o autom�tica pelo Python, acesse o endere�o local aberto pelo INICIAR.bat.</p>
+        <p>O One For All consulta diretamente a <a id="apiInfoLink" href="https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1" target="_blank" rel="noopener noreferrer">API oficial da Blitz</a>, sem par�metros de data, conforme o endere�o que voc� testou. Quando o servi�o permite leitura, atualiza aproximadamente a cada 2 minutos com a aba ativa. O celular pode suspender atualiza��es em segundo plano.</p>
+        <p>Se a Blitz bloquear a leitura entre sites (CORS) ou retornar HTTP 403, 429 ou 451, o painel indicar� a falha. N�o utiliza proxies, dados fict�cios ou outra fonte para simular resultados ao vivo.</p>
       </section>
-      <p class="disclaimer">Observação estatística: as rodadas anteriores não permitem prever o próximo resultado. Sem apostas nem garantia de acerto.</p>
+      <p class="disclaimer">Observa��o estat�stica: as rodadas anteriores n�o permitem prever o pr�ximo resultado. Sem apostas nem garantia de acerto.</p>
     </main>
-    <footer>ONE FOR ALL · Fonte exclusiva: Blitz Double · Fuso America/Sao_Paulo</footer>
+    <footer>ONE FOR ALL � Fonte exclusiva: Blitz Double � Fuso America/Sao_Paulo</footer>
   </div>
 </body>
 </html>
