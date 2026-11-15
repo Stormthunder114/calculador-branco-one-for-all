@@ -32,7 +32,7 @@
         </div>
       </section>
 
-      <div class="notice normal" id="notice" role="status" aria-live="polite">A coleta pública ocorre no GitHub aproximadamente uma vez por hora. Esta página verifica automaticamente o arquivo atualizado, sem consultar a Blitz diretamente.</div>
+      <div class="notice normal" id="notice" role="status" aria-live="polite">Fonte ativa: Históricos Blaze, atualizada periodicamente pelo GitHub. A API oficial da Blitz retornou HTTP 451 durante o teste de coleta automática em 15/11/2026. Não estamos contornando esse bloqueio.</div>
 
       <section class="stats" aria-label="Resumo da validação">
         <div class="tile"><span>Teste anterior</span><strong>3 de 5</strong><small>3 acertos · 2 falhas</small></div>
@@ -45,7 +45,7 @@
       <section class="panel">
         <div class="section-heading"><div><h2>Últimas rodadas recebidas</h2><p id="rowsCount">0 rodadas armazenadas</p></div><span class="legend"><i class="dot white"></i> Branco <i class="dot yellow"></i> Amarelo <i class="dot black"></i> Preto</span></div>
         <div class="sample-toolbar">
-          <label>Mostrar <select id="sampleCount" aria-label="Número de rodadas"><option value="50">50 rodadas</option><option value="100">100 rodadas</option><option value="200" selected>200 rodadas</option></select></label>
+          <label>Mostrar <select id="sampleCount" aria-label="Número de rodadas"><option value="50">50 rodadas</option><option value="100" selected>100 rodadas</option><option value="200">200 rodadas</option></select></label>
           <label>Destacar <select id="sampleColor" aria-label="Filtro de cor"><option value="all">Todas as cores</option><option value="0">Branco</option><option value="1">Amarelo</option><option value="2">Preto</option></select></label>
         </div>
         <div class="color-distribution" aria-label="Frequências na amostra">
@@ -112,6 +112,7 @@
           <summary><span><strong>Ajuda e histórico</strong><small>Entenda a regra e salve uma cópia</small></span><span class="chevron">+</span></summary>
           <div class="details-body">
             <p><strong>Como funciona?</strong> Em cada hora, identificamos o primeiro par de amarelos seguidos. As próximas 11 rodadas são observadas. O primeiro branco encerra a contagem; se nenhuma for branca, é falha. Se faltarem dados, não pontuamos.</p>
+            <p><strong>Por que não é a API oficial?</strong> Embora o teste inicial da Blitz tenha retornado 100 registros (HTTP 200), uma consulta automática posterior retornou HTTP 451 em 15/11/2026. A integração automática direta foi suspensa; não fazemos tentativas para contornar essa restrição.</p>
             <p><strong>Como atualiza?</strong> O GitHub consulta uma amostra pública do Históricos Blaze uma vez por hora, respeitando robots.txt e as restrições do serviço. Nosso site lê a cópia publicada no GitHub e a verifica a cada 10 minutos. O botão apenas recarrega essa cópia.</p>
  <p><strong>Por que pode atrasar?</strong> A fonte pode ter lacunas, ficar indisponível ou mudar de formato. Nesse caso, preservamos os resultados anteriores e sinalizamos o problema. Sem dados completos, a hora não conta como acerto ou falha.</p>
             <p><strong>De onde vêm os resultados?</strong> Fonte externa: <a href="https://historicosblaze.com/results/blitz/double" target="_blank" rel="noopener noreferrer">Históricos Blaze — Double Blitz</a>. Não somos afiliados a esse serviço. A cor vermelha (números 1–7) é exibida como amarela (cor 1), seguindo o nome usado neste experimento.</p>
