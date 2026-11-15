@@ -9,6 +9,9 @@ const HOUR = 3600000;
 const MAX_GAP = 150000;
 const COOLDOWN = 10 * 60000;
 const STORE = "ofa_blitz_records_v2";
+const OFFICIAL_STORE = "ofa_blitz_official_manual_v1";
+const SOURCE_KEY = "ofa_active_source_v1";
+const OFFICIAL_URL = "https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1";
 const MANUAL_STORE = "ofa_blitz_treino_v2";
 const LIMIT_STORE = 7500;
 const $ = (id) => document.getElementById(id);
@@ -19,7 +22,8 @@ const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
 const hourFormatter = new Intl.DateTimeFormat("pt-BR", {
   timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit", hourCycle: "h23"
 });
-let records = readStorage(STORE, []);
+let sourceMode = localStorage.getItem(SOURCE_KEY) === "official" ? "official" : "historicos";
+let records = readStorage(sourceMode === "official" ? OFFICIAL_STORE : STORE, []);
 let training = readStorage(MANUAL_STORE, []);
 let updating = false;
 let nextAllowed = Number(localStorage.getItem("ofa_feed_next_allowed_v3") || 0);
@@ -55,9 +59,76 @@ function mergeRecords(input) {
     map.set(row.id, row);
   }
   records = [...map.values()].sort((a,b) => a.t - b.t).slice(-LIMIT_STORE);
-  try { localStorage.setItem(STORE, JSON.stringify(records)); }
+  try { localStorage.setItem(sourceMode === "official" ? OFFICIAL_STORE : STORE, JSON.stringify(records)); }
   catch (_) { tell("Não foi possível salvar todas as rodadas neste navegador.", "warn"); }
   return received;
+}
+function officialApiLink() {
+  const now = new Date();
+  const start = new Date(now.getTime() - 2 * 86400000);
+  return OFFICIAL_URL +
+    "?startDate=" + encodeURIComponent(start.toISOString()) +
+    "&endDate=" + encodeURIComponent(now.toISOString()) + "&page=1";
+}
+function switchSource(mode) {
+  if (!["official", "historicos"].includes(mode)) return;
+  sourceMode = mode;
+  localStorage.setItem(SOURCE_KEY, mode);
+  records = readStorage(mode === "official" ? OFFICIAL_STORE : STORE, []);
+  $("sourceSelect").value = mode;
+  render();
+  if (mode === "historicos") {
+    tell("Mostrando Históricos Blaze. A atualização automática continua disponível.", "normal");
+  } else {
+    tell("Mostrando somente os registros oficiais que você importou da Blitz.", "normal");
+  }
+}
+function parseOfficialPayload(input) {
+  let parsed;
+  try { parsed = JSON.parse(String(input).trim()); }
+  catch (_) { throw new Error("O texto copiado não é um resultado válido da API. Copie o conteúdo completo da página."); }
+  const values = Array.isArray(parsed?.records) ? parsed.records :
+    Array.isArray(parsed?.data?.records) ? parsed.data.records : null;
+  if (!values) throw new Error("Não encontrei a lista de rodadas. Abra o link da API e copie toda a página.");
+  const seen = new Map();
+  for (const raw of values.slice(0,100)) {
+    if (!raw || raw.id === undefined || raw.id === null) continue;
+    const c = Number(raw.color), r = Number(raw.roll);
+    if (!Number.isInteger(r) || r < 0 || r > 14 || !Number.isInteger(c) || c < 0 || c > 2) continue;
+    if ((r === 0 ? 0 : r <= 7 ? 1 : 2) !== c) continue;
+    const id = "of:" + String(raw.id);
+    const record = { id, created_at:raw.created_at, roll:r, color:c };
+    if (sanitizeRecord(record)) seen.set(id,record);
+  }
+  if (!seen.size) throw new Error("Não encontrei rodadas válidas com horário, número e cor.");
+  return [...seen.values()];
+}
+function importOfficialText(input) {
+  const official = parseOfficialPayload(input);
+  sourceMode = "official";
+  localStorage.setItem(SOURCE_KEY,sourceMode);
+  records = readStorage(OFFICIAL_STORE,[]);
+  const count = mergeRecords(official);
+  $("sourceSelect").value = "official";
+  render();
+  const msg = "API oficial: " + official.length + " rodadas válidas nesta cópia, " +
+    count + " novas armazenadas. Apenas a fonte oficial está sendo exibida.";
+  $("importMessage").textContent = msg;
+  tell(msg,"ok");
+  return count;
+}
+async function importClipboard() {
+  try {
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+      throw new Error("Seu navegador não permite ler a área de transferência. Use o campo Colar abaixo.");
+    }
+    const text = await navigator.clipboard.readText();
+    importOfficialText(text);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Não foi possível ler o texto copiado.";
+    $("importMessage").textContent = message + " Você também pode colar no campo abaixo.";
+    tell(message,"warn");
+  }
 }
 function gapBefore(list, index) {
   return index > 0 && (list[index].t - list[index - 1].t > MAX_GAP ||
@@ -216,6 +287,8 @@ function analyzePasted() {
     " É uma análise do recorte colado, sem validação da primeira ocorrência por hora.";
 }
 function render() {
+  $("sourceLabel").textContent = sourceMode === "official" ? "Fonte: Blitz oficial" : "Fonte: Históricos Blaze";
+  $("sourceSelect").value = sourceMode;
   const outcomes = groupHours();
   const certified = outcomes.filter(x => x.state === "acerto" || x.state === "falha");
   const hits = certified.filter(x => x.state === "acerto").length;
@@ -276,6 +349,11 @@ function render() {
   refreshCooldown();
 }
 function refreshCooldown() {
+  if (sourceMode === "official") {
+    $("updateBtn").disabled = true;
+    $("updateBtn").textContent = "Use os dois passos da API oficial acima";
+    return;
+  }
   const remaining = nextAllowed - Date.now();
   $("updateBtn").disabled = updating || remaining > 0;
   if (!updating) {
@@ -285,6 +363,10 @@ function refreshCooldown() {
 }
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function updateData() {
+  if (sourceMode === "official") {
+    tell("Fonte oficial selecionada: use Abrir 100 resultados oficiais e o botão de importar. A leitura automática entre sites não está autorizada.", "normal");
+    return;
+  }
   if (updating || Date.now() < nextAllowed) return;
   updating = true;
   nextAllowed = Date.now() + 2 * 60000; // arquivo público do próprio site, não consulta a fonte externa
@@ -318,6 +400,7 @@ async function updateData() {
     if (!Number.isFinite(fetched) || fetched > Date.now()+120000) {
       throw new Error("Não foi possível conferir o horário de atualização da fonte.");
     }
+    if (sourceMode !== "historicos") return; // Nunca misturar a fonte externa aos registros oficiais importados.
     const count = mergeRecords(feed.records);
     render();
     const age = Date.now() - fetched;
@@ -389,6 +472,16 @@ $("replayPosition").addEventListener("input", value => {
   renderReplay();
 });
 $("pasteAnalyzeBtn").addEventListener("click", analyzePasted);
+$("clipboardImport").addEventListener("click", importClipboard);
+$("manualOfficialImport").addEventListener("click", () => {
+  try { importOfficialText($("officialPaste").value); $("officialPaste").value = ""; }
+  catch (error) {
+    $("importMessage").textContent = error instanceof Error ? error.message : "Conteúdo inválido.";
+    tell($("importMessage").textContent,"warn");
+  }
+});
+$("sourceSelect").addEventListener("change", () => switchSource($("sourceSelect").value));
+$("openOfficialApi").href = officialApiLink();
 $("updateBtn").addEventListener("click", updateData);
 $("whiteBtn").addEventListener("click", () => addTraining(0));
 $("yellowBtn").addEventListener("click", () => addTraining(1));
@@ -399,7 +492,7 @@ $("resetTraining").addEventListener("click", () => {
 $("exportBtn").addEventListener("click", exportCopy);
 $("clearBtn").addEventListener("click", () => {
   if (!confirm("Apagar as rodadas coletadas neste navegador? O histórico anterior de 3/5 será preservado.")) return;
-  records = []; localStorage.removeItem(STORE); render();
+  records = []; localStorage.removeItem(sourceMode === "official" ? OFFICIAL_STORE : STORE); render();
   tell("Histórico novo apagado somente deste navegador.", "normal");
 });
 render();

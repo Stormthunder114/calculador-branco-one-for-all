@@ -94,3 +94,22 @@ footer{border-top:1px solid var(--stroke);padding-top:20px;text-align:center;fon
 .paste-actions label{flex-wrap:wrap}.paste-actions button{font-weight:700}
 .external-reference{font-size:.83rem;white-space:nowrap}
 @media(max-width:650px){.color-distribution{grid-template-columns:1fr}.color-distribution div{padding:9px 12px}.sample-toolbar select{max-width:175px}.paste-actions{display:block}.paste-actions button{margin-top:12px;width:100%}}
+
+
+.official-import{border-color:#347a76;background:linear-gradient(145deg,#142f3b,#142138)}
+.official-import .section-heading{align-items:center}
+.import-steps{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0}
+.import-steps>div{background:#10283c;border:1px solid #35546d;border-radius:12px;padding:16px}
+.step-number{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--teal);color:#092a29;margin-right:8px;font-weight:800}
+.import-steps strong{font-size:.95rem}
+.import-steps p{margin:10px 0 15px;font-size:.84rem;color:var(--muted)}
+.import-link{display:inline-block;text-decoration:none;font-size:.9rem}
+.import-message{font-size:.85rem;color:#b7e9d8;background:#163b3c;border:1px solid #2b615d;border-radius:10px;padding:11px 12px}
+.official-import details{border-bottom:1px solid var(--stroke);padding:13px 0}
+.official-import summary{cursor:pointer;font-size:.83rem;color:var(--muted)}
+.official-import textarea{display:block;width:100%;background:#0e2335;color:var(--txt);border:1px solid #4d647a;border-radius:10px;padding:12px;margin-bottom:9px;resize:vertical}
+.official-import kbd{font-family:inherit;color:#fff;background:#2b4356;border-radius:5px;padding:2px 5px}
+.source-control{display:flex;gap:10px;align-items:center;justify-content:flex-start;flex-wrap:wrap;margin-top:15px}
+.source-control label{font-size:.84rem;color:var(--muted)}
+.source-control select{background:#263b50;color:var(--txt);border:1px solid #496479;border-radius:9px;padding:8px;font:inherit;max-width:100%}
+@media(max-width:680px){.import-steps{grid-template-columns:1fr}.official-import .section-heading{align-items:start}.import-steps>div{padding:13px}}

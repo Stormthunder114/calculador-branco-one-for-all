@@ -132,3 +132,44 @@ test('análise dos números colados não altera os acertos validados', () => {
   assert.match(ctx.document.getElementById('pasteResult').textContent,/tentativa 3\/11/);
   assert.equal(ctx.groupHours().length,0);
 });
+
+
+test('importação da API oficial aceita 100 registros válidos sem misturar outra fonte',()=>{
+  const ctx=harness();
+  const rows=Array.from({length:100},(_,i)=>({
+    id:i+10000,created_at:new Date(START+1000+i*15000).toISOString(),
+    roll:i%15,color:i%15===0?0:i%15<=7?1:2
+  }));
+  const n=ctx.importOfficialText(JSON.stringify({records:rows,total_pages:1}));
+  assert.equal(n,100);
+  assert.equal(ctx.groupHours().length,1);
+  assert.equal(ctx.localStorage.getItem('ofa_active_source_v1'),'official');
+  assert.equal(JSON.parse(ctx.localStorage.getItem('ofa_blitz_official_manual_v1')).length,100);
+  assert.equal(ctx.localStorage.getItem('ofa_blitz_records_v2'),null);
+  assert.equal(ctx.importOfficialText(JSON.stringify({records:rows})),0);
+});
+test('códigos de cor inconsistentes são descartados na importação',()=>{
+  const ctx=harness();
+  const raw=[
+    {id:4,created_at:new Date(START+1000).toISOString(),roll:0,color:1},
+    {id:5,created_at:new Date(START+2000).toISOString(),roll:3,color:1}
+  ];
+  const imported=ctx.parseOfficialPayload(JSON.stringify({records:raw}));
+  assert.equal(imported.length,1);
+  assert.equal(imported[0].id,'of:5');
+});
+test('código não permite importação de conteúdo que não seja a resposta da API',()=>{
+  const ctx=harness();
+  assert.throws(()=>ctx.parseOfficialPayload('123, 4, 5'));
+  assert.throws(()=>ctx.parseOfficialPayload('{"hello":[]}'));
+});
+test('trocar a fonte conserva arquivos separados no navegador',()=>{
+  const ctx=harness();
+  ctx.mergeRecords(sequence([1,1,2]));
+  const historySize=JSON.parse(ctx.localStorage.getItem('ofa_blitz_records_v2')).length;
+  const raw={records:[{id:"unique",created_at:new Date(START+1000).toISOString(),roll:0,color:0}]};
+  ctx.importOfficialText(JSON.stringify(raw));
+  ctx.switchSource('historicos');
+  assert.equal(ctx.groupHours().length,1);
+  assert.equal(JSON.parse(ctx.localStorage.getItem('ofa_blitz_records_v2')).length,historySize);
+});
