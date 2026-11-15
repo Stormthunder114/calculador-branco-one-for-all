@@ -400,6 +400,7 @@ async function updateData() {
     if (!Number.isFinite(fetched) || fetched > Date.now()+120000) {
       throw new Error("Não foi possível conferir o horário de atualização da fonte.");
     }
+    if (sourceMode !== "historicos") return; // Nunca misturar a fonte externa aos registros oficiais importados.
     const count = mergeRecords(feed.records);
     render();
     const age = Date.now() - fetched;
