@@ -1,0 +1,40 @@
+name: Atualizar 100 resultados oficiais da Blitz
+on:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+  push:
+    branches:
+      - api-oficial-ultimas-100-20261115
+permissions:
+  contents: write
+concurrency:
+  group: blitz-api-oficial-um-por-vez
+  cancel-in-progress: false
+jobs:
+  coletar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Testar validação dos registros
+        run: |
+          python3 -m unittest discover -s tests -p 'test_blitz_oficial.py'
+          node --check app.js
+          node --test tests/observatorio.test.cjs
+      - name: Consultar apenas página 1 da API oficial
+        run: python3 scripts/coletar_blitz_oficial.py
+      - name: Publicar dados válidos e estado da consulta
+        run: |
+          git add data/blitz-oficial-100.json data/blitz-oficial-status.json 2>/dev/null || true
+          if git diff --staged --quiet; then
+            echo "Nenhuma mudança válida"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Atualiza últimas rodadas oficiais Blitz"
+          git push
