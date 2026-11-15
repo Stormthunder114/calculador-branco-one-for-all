@@ -3,13 +3,11 @@
 /* ONE FOR ALL | Observatório Blitz
    Nunca gera previsões nem horários de apostas.
    Regras fixadas em 15/11/2026, sem ajuste após observar dados. */
-const API = "https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1";
 const CUTOFF_ISO = "2026-11-15T04:00:00.000Z"; // 15/11/2026 01h, Brasília
 const CUTOFF = Date.parse(CUTOFF_ISO);
 const HOUR = 3600000;
 const MAX_GAP = 150000;
 const COOLDOWN = 10 * 60000;
-const PAGE_DELAY = 15000;
 const STORE = "ofa_blitz_records_v2";
 const MANUAL_STORE = "ofa_blitz_treino_v2";
 const LIMIT_STORE = 7500;
@@ -24,7 +22,7 @@ const hourFormatter = new Intl.DateTimeFormat("pt-BR", {
 let records = readStorage(STORE, []);
 let training = readStorage(MANUAL_STORE, []);
 let updating = false;
-let nextAllowed = Number(localStorage.getItem("ofa_blitz_next_allowed_v2") || 0);
+let nextAllowed = Number(localStorage.getItem("ofa_feed_next_allowed_v3") || 0);
 
 function readStorage(key, fallback) {
   try {
@@ -282,56 +280,44 @@ function refreshCooldown() {
   $("updateBtn").disabled = updating || remaining > 0;
   if (!updating) {
     $("updateBtn").textContent = remaining > 0 ?
-      "Nova consulta às " + hm(nextAllowed) : "Atualizar resultados";
+      "Atualizado · recarregar às " + hm(nextAllowed) : "Atualizar resultados";
   }
 }
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function updateData() {
   if (updating || Date.now() < nextAllowed) return;
   updating = true;
-  nextAllowed = Date.now() + COOLDOWN;
-  localStorage.setItem("ofa_blitz_next_allowed_v2", String(nextAllowed));
-  $("updateBtn").textContent = "Conectando à Blitz...";
+  nextAllowed = Date.now() + 2 * 60000; // arquivo público do próprio site, não consulta a fonte externa
+  localStorage.setItem("ofa_feed_next_allowed_v3", String(nextAllowed));
+  $("updateBtn").textContent = "Carregando histórico...";
   $("updateBtn").disabled = true;
-  const ending = new Date().toISOString(); // Congela o intervalo para a paginação.
-  let newCount = 0;
-  let successfulPages = 0;
   try {
-    for (let page = 1; page <= 2; page++) {
-      if (page === 2) {
-        tell("Primeira página recebida. Consultando a segunda após uma pausa...", "normal");
-        await pause(PAGE_DELAY);
-      }
-      const requestStart = new Date(Math.max(CUTOFF, Date.now() - 3 * HOUR)).toISOString();
-      const url = API + "?startDate=" + encodeURIComponent(requestStart) +
-        "&endDate=" + encodeURIComponent(ending) + "&page=" + page;
-      let response;
-      try { response = await fetch(url, { method: "GET", mode: "cors", cache: "no-store", credentials: "omit" }); }
-      catch (_) {
-        throw new Error("Não houve resposta HTTP legível da Blitz. Pode ser CORS, indisponibilidade de rede ou bloqueio. Não é possível confirmar a causa somente pela página. Seus dados salvos foram preservados.");
-      }
-      if (response.status === 429) {
-        const raw = response.headers.get("Retry-After");
-        const seconds = /^\d+$/.test(raw || "") ? Number(raw) :
-          (raw && Number.isFinite(Date.parse(raw)) ? Math.max(0, (Date.parse(raw) - Date.now()) / 1000) : 1800);
-        nextAllowed = Math.max(nextAllowed, Date.now() + Math.max(1800,seconds) * 1000);
-        localStorage.setItem("ofa_blitz_next_allowed_v2", String(nextAllowed));
-        throw new Error("A Blitz pediu uma pausa (limite 429). A próxima tentativa foi adiada.");
-      }
-      if (response.status === 403 || response.status === 401) throw new Error("A Blitz negou o acesso (HTTP " + response.status + "). Não tentaremos contornar a restrição.");
-      if (!response.ok) throw new Error("A Blitz respondeu com erro HTTP " + response.status + ".");
-      const body = await response.json();
-      const batch = Array.isArray(body.records) ? body.records :
-        (body.data && Array.isArray(body.data.records) ? body.data.records : null);
-      if (!batch) throw new Error("A Blitz retornou um formato de dados diferente do esperado.");
-      successfulPages++;
-      newCount += mergeRecords(batch);
-      render();
-      if (batch.length < 100) break;
+    const response = await fetch("./data/blitz-historico-publico.json?rev=" + Date.now(), {
+      method: "GET", cache: "no-store", credentials: "omit"
+    });
+    if (response.status === 404) throw new Error("A primeira coleta ainda não foi publicada. Tente novamente mais tarde.");
+    if (!response.ok) throw new Error("O arquivo de resultados respondeu HTTP " + response.status + ".");
+    const feed = await response.json();
+    if (!feed || feed.source !== "Históricos Blaze" || !Array.isArray(feed.records)) {
+      throw new Error("O arquivo de histórico está em formato inesperado.");
     }
-    tell("Atualização concluída: " + newCount + " rodadas novas. Só classificamos sinais com dados suficientes.", "ok");
-  } catch (error) {
-    tell(error.message + (successfulPages ? " Os dados já recebidos foram salvos." : ""), "warn");
+    const fetched = Date.parse(feed.fetched_at || "");
+    if (!Number.isFinite(fetched) || fetched > Date.now()+120000) {
+      throw new Error("Não foi possível conferir o horário de atualização da fonte.");
+    }
+    const count = mergeRecords(feed.records);
+    render();
+    const age = Date.now() - fetched;
+    const sourceTime = fmt(fetched);
+    if (age > 2 * HOUR) {
+      tell("O histórico externo está atrasado (última coleta " + sourceTime +
+        "). " + count + " rodadas novas recuperadas. Não considere este painel ao vivo.", "warn");
+    } else {
+      tell("Histórico atualizado pelo GitHub: " + count + " rodadas novas. Fonte: Históricos Blaze. Última coleta: " + sourceTime + ". A fonte pode ter lacunas.", "ok");
+    }
+  } catch (err) {
+    tell((err instanceof Error ? err.message : "Falha ao buscar resultados") +
+      " Os dados já armazenados continuam no navegador.", "warn");
   } finally {
     updating = false;
     refreshCooldown();
@@ -404,4 +390,6 @@ $("clearBtn").addEventListener("click", () => {
   tell("Histórico novo apagado somente deste navegador.", "normal");
 });
 render();
+updateData(); // Na abertura, lê apenas o arquivo publicado no nosso próprio site.
 setInterval(refreshCooldown, 30000);
+setInterval(updateData, 10 * 60000); // O coletor na origem roda separadamente, no GitHub.
