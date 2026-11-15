@@ -6,7 +6,6 @@
 const API = "https://blitz4.casino/api/singleplayer-originals/originals/roulette_games/recent/history/1";
 const TIMEZONE = "America/Sao_Paulo";
 const POLL_MS = 120000;
-const LOOKBACK_MS = 3 * 3600000; // Somente as últimas 3 horas, não 48 horas
 const CONTINUITY_MS = 150000;
 const FRESH_MS = 300000;
 const MAX_SERVER_AGE_MS = 600000;
@@ -43,11 +42,10 @@ function formatTime(timestamp) {
 function formatHour(timestamp) {
   return shortTime.format(new Date(timestamp));
 }
-function buildApiUrl(now = Date.now()) {
-  const start = new Date(now - LOOKBACK_MS).toISOString();
-  const end = new Date(now).toISOString();
-  return API + "?startDate=" + encodeURIComponent(start) +
-    "&endDate=" + encodeURIComponent(end) + "&page=1";
+function buildApiUrl() {
+  // O endpoint fornecido pelo usuário retorna as rodadas recentes sem filtro por datas.
+  // Não adicionar startDate, endDate ou page; validar os registros e sua idade na resposta.
+  return API + "?";
 }
 function validateRound(raw, now = Date.now()) {
   if (!raw || raw.id === undefined || raw.id === null) return null;
@@ -58,7 +56,7 @@ function validateRound(raw, now = Date.now()) {
   const sourceTime = String(raw.created_at || "");
   if (!/(Z|[+-]\d\d:\d\d)$/i.test(sourceTime)) return null;
   const t = Date.parse(sourceTime);
-  if (!Number.isFinite(t) || t > now+120000 || t < now-LOOKBACK_MS-120000) return null;
+  if (!Number.isFinite(t) || t > now+120000 || t < now-3*3600000-120000) return null;
   return {id:String(raw.id),t,roll,c:color};
 }
 function normalizeOfficial(body, now = Date.now()) {
