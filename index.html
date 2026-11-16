@@ -9,7 +9,8 @@
   <meta name="description" content="One For All: painel de monitoramento estatístico dos últimos 100 resultados oficiais do Double da Blitz.">
   <title>One For All | Double ao vivo</title>
   <link rel="stylesheet" href="./style.css">
-  <script src="./app.js?v=20261115-diagnostico-preciso" defer></script>
+  <script src="./strategy-lab.js?v=20261115-lab-cor-branco" defer></script>
+  <script src="./app.js?v=20261115-lab-cor-branco" defer></script>
 </head>
 <body>
   <div class="shell">
@@ -23,7 +24,7 @@
         <div class="hero-heading">
           <div class="eyebrow"><span class="eyebrow-dot"></span> SOMENTE RESULTADOS OFICIAIS</div>
           <h1>Double <span>em tempo real.</span></h1>
-          <p>Resultados oficiais, histórico de até 300 rodadas e estatísticas atualizadas quando a Blitz permitir a consulta. Sem fontes alternativas nem lançamentos manuais.</p>
+          <p>Resultados oficiais, histórico de até 2.000 rodadas e estatísticas atualizadas quando a Blitz permitir a consulta. Sem fontes alternativas nem lançamentos manuais.</p>
           <div class="connection">
             <span class="status-dot" id="statusDot" aria-hidden="true"></span>
             <span id="statusBadge" aria-live="polite">Conectando...</span>
@@ -74,8 +75,8 @@
 
       <section class="panel" id="historico300">
         <div class="panel-title">
-          <div><h2>Histórico oficial acumulado</h2><p id="archiveDescription">Até 300 rodadas recebidas em consultas autorizadas. O histórico não é uma conexão ao vivo.</p></div>
-          <span class="history-count" id="archiveCount">0 / 300</span>
+          <div><h2>Histórico oficial acumulado</h2><p id="archiveDescription">Até 2.000 rodadas acumuladas em consultas autorizadas. O histórico não é uma conexão ao vivo.</p></div>
+          <span class="history-count" id="archiveCount">0 / 2000</span>
         </div>
         <div class="archive-metrics">
           <div><span>Brancos no histórico</span><strong id="archiveWhites">—</strong></div>
@@ -86,6 +87,47 @@
           <summary>Ver todas as rodadas acumuladas</summary>
           <div class="rounds history-rounds" id="archiveRounds">O histórico ficará disponível após uma consulta oficial bem-sucedida.</div>
         </details>
+      </section>
+
+      <section class="panel strategy-lab" id="strategyLab">
+        <div class="panel-title">
+          <div>
+            <h2>Laboratório: cor e branco</h2>
+            <p>Novas hipóteses testadas apenas com o histórico recebido da Blitz. Os resultados são retrospectivos e não preveem a próxima rodada.</p>
+          </div>
+        </div>
+        <div class="lab-availability" id="strategySourceState" role="status">
+          Aguardando histórico oficial validado.
+        </div>
+        <div class="strategy-grid">
+          <article class="strategy-card" aria-labelledby="strategyColorTitle">
+            <div class="strategy-kind">ESTUDO DE CORES · 1 RODADA</div>
+            <h3 id="strategyColorTitle">Trinca e inversão</h3>
+            <p>Após três amarelos ou três pretos seguidos, observa se a próxima rodada é da cor contrária. O branco conta como não ocorrência.</p>
+            <div class="strategy-metrics">
+              <div><span>Amostras completas</span><strong id="strategyColorSamples">0</strong></div>
+              <div><span>Ocorrências</span><strong id="strategyColorHits">0</strong></div>
+              <div><span>Taxa observada</span><strong id="strategyColorRate">—</strong></div>
+              <div><span>Referência teórica</span><strong>46,67%</strong></div>
+            </div>
+            <p class="strategy-note" id="strategyColorConfidence">Aguardando amostras suficientes para comparar.</p>
+            <div class="strategy-events" id="strategyColorEvents">Nenhuma amostra concluída.</div>
+          </article>
+          <article class="strategy-card" aria-labelledby="strategyWhiteTitle">
+            <div class="strategy-kind">ESTUDO DO BRANCO · 11 RODADAS</div>
+            <h3 id="strategyWhiteTitle">Oito sem branco</h3>
+            <p>Após oito rodadas sem branco, observa as 11 seguintes. Usa somente a primeira janela válida de cada hora de Brasília, sem cruzar a virada da hora.</p>
+            <div class="strategy-metrics">
+              <div><span>Horas avaliadas</span><strong id="strategyWhiteSamples">0</strong></div>
+              <div><span>Com branco</span><strong id="strategyWhiteHits">0</strong></div>
+              <div><span>Taxa observada</span><strong id="strategyWhiteRate">—</strong></div>
+              <div><span>Referência teórica</span><strong>53,18%</strong></div>
+            </div>
+            <p class="strategy-note" id="strategyWhiteConfidence">Janelas incompletas não são contabilizadas.</p>
+            <div class="strategy-events" id="strategyWhiteEvents">Nenhuma hora concluída.</div>
+          </article>
+        </div>
+        <p class="sample-footnote">Intervalos acima de 150 segundos, rodadas duplicadas ou amostras sem as 11 rodadas completas são excluídos do cálculo correspondente. A referência teórica pressupõe números equiprováveis e independentes.</p>
       </section>
 
       <section class="panel">
