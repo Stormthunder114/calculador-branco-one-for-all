@@ -170,17 +170,17 @@ test("Falha sem status HTTP informa CORS ou rede, não inventa um código",async
 });
 
 
-test("Histórico acumula no máximo 300 registros oficiais, sem fontes alternativas",()=>{
+test("Histórico acumula no máximo 2000 registros oficiais, sem fontes alternativas",()=>{
   const {ctx,store,now}=harness();
-  const data=Array.from({length:370},(_,i)=>({
+  const data=Array.from({length:2070},(_,i)=>({
     id:"history"+i,t:now-370000+i*1000,
     c:i%15===0?0:i%15<=7?1:2,roll:i%15
   }));
   ctx.mergeOfficial(data,now);
   const saved=JSON.parse(store.get("ofa_apenas_blitz_live_v1"));
-  assert.equal(saved.records.length,300);
+  assert.equal(saved.records.length,2000);
   assert.equal(saved.source,"Blitz API oficial");
-  assert.equal(ctx.loadOfficialArchive(now).length,300);
+  assert.equal(ctx.loadOfficialArchive(now).length,2000);
 });
 test("A API pode responder menos de 100 resultados e ainda ser válida",()=>{
   const {ctx,now}=harness();
@@ -215,4 +215,14 @@ test("Falha sem código HTTP não é descrita como recusa confirmada pelo servid
   assert.match(document.getElementById("nextUpdate").textContent,/CORS ou rede/);
   assert.doesNotMatch(document.getElementById("nextUpdate").textContent,/servidor não autorizou/i);
   assert.equal(document.getElementById("refreshBtn").textContent,"Não foi possível conectar");
+});
+
+
+test("Interface tem as duas análises experimentais sem alterar a fonte oficial",()=>{
+  assert.match(HTML,/id="strategyColorSamples"/);
+  assert.match(HTML,/id="strategyWhiteSamples"/);
+  assert.match(HTML,/strategy-lab\.js/);
+  assert.match(JS,/StrategyLab\.analyze\(archive\)/);
+  assert.match(HTML,/46,67%/);
+  assert.match(HTML,/53,18%/);
 });
