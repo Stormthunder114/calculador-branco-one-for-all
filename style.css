@@ -141,3 +141,33 @@ footer{border-top:1px solid #293e55;text-align:center;font-size:.75rem;padding-t
 @media (prefers-reduced-motion:reduce){
   .frequency-bars .bar-segment{transition:none}
 }
+
+
+/* Laboratório de hipóteses — cor e branco */
+.strategy-lab .panel-title{margin-bottom:12px}
+.lab-availability{border:1px solid #31536b;color:#bfdae6;background:#0e2235;border-radius:10px;
+  padding:11px 13px;margin:10px 0 18px;font-size:.79rem;line-height:1.5}
+.strategy-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:16px}
+.strategy-card{border:1px solid #34536b;background:#102439;border-radius:16px;padding:20px;min-width:0}
+.strategy-kind{font-size:.66rem;letter-spacing:.1em;color:#85c9de;font-weight:800;margin-bottom:9px}
+.strategy-card h3{font-size:1.2rem;margin:0 0 8px;color:#f2f8fe}
+.strategy-card>p:not(.strategy-note){font-size:.82rem;color:#b4cadb;line-height:1.55;min-height:75px}
+.strategy-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:16px 0}
+.strategy-metrics>div{border:1px solid #305067;border-radius:10px;padding:10px;background:#0b1b2e}
+.strategy-metrics span{display:block;font-size:.7rem;color:#b7ccda;line-height:1.45}
+.strategy-metrics strong{display:block;font-size:1.18rem;font-weight:800;font-variant-numeric:tabular-nums;margin-top:5px}
+.strategy-note{font-size:.78rem;color:#e5c883;line-height:1.5;margin:0 0 14px}
+.strategy-events{display:flex;flex-direction:column;gap:6px}
+.strategy-event{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;background:#0b1c2d;
+  padding:7px 9px;border-radius:8px;color:#c0d2e0;font-size:.74rem}
+.strategy-event span:first-child{font-variant-numeric:tabular-nums}
+.strategy-event small{font-size:.68rem;color:#9cb9cb}
+.strategy-pill{font-size:.67rem;font-weight:800;border-radius:14px;padding:2px 7px;border:1px solid #45637a}
+.strategy-pill.hit{color:#b0f4cd;border-color:#2e816b}
+.strategy-pill.miss{color:#ffc2ca;border-color:#8b515c}
+.strategy-pill.incomplete{color:#eddca4;border-color:#77704f}
+@media(max-width:760px){
+  .strategy-grid{grid-template-columns:1fr;gap:12px}
+  .strategy-card{padding:15px}
+  .strategy-card>p:not(.strategy-note){min-height:0}
+}

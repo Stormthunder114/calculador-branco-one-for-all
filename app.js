@@ -11,7 +11,7 @@ const FRESH_MS = 300000;
 const MAX_SERVER_AGE_MS = 600000;
 const HOUR_MS = 3600000;
 const MAX_ROUND_AGE_MS = 24 * HOUR_MS;
-const MAX_ARCHIVE = 300;
+const MAX_ARCHIVE = 2000;
 const OFFICIAL_STORAGE = "ofa_apenas_blitz_live_v1";
 const FIRST_TEST_TIME = Date.parse("2026-11-15T04:00:00.000Z");
 const $ = id => document.getElementById(id);
@@ -331,11 +331,52 @@ function renderExperiments() {
       x.status+'">'+strings[x.status]+'</span></td><td>'+attempts+'</td></tr>';
   }).join("")||'<tr><td class="empty" colspan="4">Sem rodadas oficiais suficientes para avaliar uma hora.</td></tr>';
 }
+function renderStrategyLab() {
+  if (typeof StrategyLab === "undefined" || typeof StrategyLab.analyze !== "function") {
+    const stateField=$("strategySourceState");
+    if (stateField) stateField.textContent="Não foi possível carregar o módulo de análise.";
+    return;
+  }
+  const lab=StrategyLab.analyze(archive);
+  const stateField=$("strategySourceState");
+  if (stateField) stateField.textContent=archive.length ?
+    "Base histórica: "+archive.length+" rodadas oficiais acumuladas neste navegador. "+
+      "Última: "+formatTime(archive[archive.length-1].t)+". Não indica conexão ao vivo.":
+    "Nenhuma rodada oficial acumulada neste navegador. A análise será preenchida somente após uma coleta válida.";
+  const rate = value => value===null?"—":(value*100).toFixed(1).replace(".",",")+"%";
+  for (const [name,data] of [["Color",lab.color],["White",lab.white]]) {
+    $("strategy"+name+"Samples").textContent=String(data.samples);
+    $("strategy"+name+"Hits").textContent=String(data.hits);
+    $("strategy"+name+"Rate").textContent=rate(data.observed);
+    const ci=data.interval95;
+    $("strategy"+name+"Confidence").textContent=
+      (ci ? "Faixa de incerteza de 95%: "+rate(ci[0])+" a "+rate(ci[1])+". " : "")+
+      (data.samples<30 ?
+        "Amostra pequena ("+data.samples+"/30). Não inferir vantagem.":
+        "Comparação exploratória, sem garantia nem previsão.")+
+      (data.incomplete ? " Janelas excluídas por dados incompletos: "+data.incomplete+"." : "");
+    const list=$("strategy"+name+"Events");
+    if (data.events.length) {
+      list.innerHTML=data.events.slice(0,6).map(row=>{
+        const statusLabel=row.status==="hit"?"Ocorreu":row.status==="miss"?"Não ocorreu":"Incompleto";
+        const details=name==="White" ?
+          (row.attempt?" · Branco na "+row.attempt+"ª rodada":""):
+          (" · Cor analisada: "+labels[row.target]);
+        return '<div class="strategy-event"><span>'+formatTime(row.t)+'</span>'+
+          '<span class="strategy-pill '+row.status+'">'+statusLabel+'</span>'+
+          '<small>'+details+'</small></div>';
+      }).join("");
+    } else {
+      list.textContent="Nenhuma janela avaliável neste histórico.";
+    }
+  }
+}
 function render() {
   renderClock();
   renderRounds();
   renderStatistics();
   renderArchive();
+  renderStrategyLab();
   renderExperiments();
   renderStatus();
 }
