@@ -173,7 +173,7 @@ test("Falha sem status HTTP informa CORS ou rede, não inventa um código",async
 test("Histórico acumula no máximo 2000 registros oficiais, sem fontes alternativas",()=>{
   const {ctx,store,now}=harness();
   const data=Array.from({length:2070},(_,i)=>({
-    id:"history"+i,t:now-370000+i*1000,
+    id:"history"+i,t:now-2100000+i*1000,
     c:i%15===0?0:i%15<=7?1:2,roll:i%15
   }));
   ctx.mergeOfficial(data,now);
